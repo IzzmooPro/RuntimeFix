@@ -1,5 +1,5 @@
 {
-  "version": "2.2",
+  "version": "2.3",
   "allowed_domains": [
     "builds.dotnet.microsoft.com",
     "download.microsoft.com",

@@ -118,17 +118,7 @@ pip install -r requirements.txt
 
 ### Çalıştırma
 
-**Grafik arayüz (önerilen):**
-```
-Program.bat → Sağ tık → Yönetici olarak çalıştır
-```
-
-**Konsol modu (debug/geliştirici):**
-```
-Yönetici_Calistir.bat → Sağ tık → Yönetici olarak çalıştır
-```
-
-Veya doğrudan Python ile:
+Bağımlılıkları kurduktan sonra doğrudan Python ile çalıştırın:
 ```bash
 python main.py
 ```
@@ -151,18 +141,15 @@ RuntimeFix/
 │   └── languages.py             # 5 dil desteği
 ├── debug/                       # Geliştirici araçları
 │   ├── debug_registry.py        # Registry tanı aracı
+│   ├── detection_audit.py       # Tespit sonuçlarını denetler
 │   └── hash_updater.py          # SHA-256 otomatik güncelleyici
-├── docs/                        # Belgeler
-│   └── README.md
-├── logs/                        # Uygulama logları (otomatik oluşur)
-│   └── aio_runtime.log
-├── downloads/                   # Offline cache (otomatik oluşur)
+├── assets/                      # Uygulama logosu ve Windows ikonu
 ├── main.py                      # Ana giriş noktası
 ├── config.json                  # Bileşen veritabanı
-├── requirements.txt             # Python bağımlılıkları
-├── Program.bat                  # Sessiz başlatıcı
-└── Yönetici_Calistir.bat        # Konsol başlatıcı
+└── requirements.txt             # Python bağımlılıkları
 ```
+
+`downloads/` ve `logs/` klasörleri çalışma sırasında gerektiğinde otomatik oluşur.
 
 ---
 
@@ -197,6 +184,12 @@ python debug\hash_updater.py
 Sistemde hangi runtime'ların hangi GUID'lerle kayıtlı olduğunu gösterir:
 ```bash
 python debug\debug_registry.py
+```
+
+### Tespit Denetimi
+Yapılandırmadaki tüm bileşenlerin tespit sonucunu raporlar:
+```bash
+python debug\detection_audit.py
 ```
 
 ---

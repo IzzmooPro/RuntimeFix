@@ -6,7 +6,6 @@ Tasarım ilkeleri:
   - Üstte sağlık halkası + tek cümlelik durum + tek buton
   - Eksikler üstte ve net, kurulular sönük — göz sadece işine bakar
   - Kategori kutuları / çerçeve içinde çerçeve yok; ayrım boşluk ve ince çizgilerle
-Eski arayüz yedeği: ui_legacy.py.bak
 """
 
 import logging

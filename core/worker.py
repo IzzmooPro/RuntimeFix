@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-worker.py - Background QThread worker for RuntimeFix v1.0
+worker.py - Background QThread worker for RuntimeFix
 Orchestrates: download → SHA256 verify → install pipeline.
 Emits human-friendly status messages.
 """

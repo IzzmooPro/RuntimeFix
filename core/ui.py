@@ -2,7 +2,7 @@
 """
 ui.py — RuntimeFix — "Sakin Modern" koyu tema
 Tasarım ilkeleri:
-  - Tek vurgu rengi (#8ab4f8), yalnızca ana eylem butonunda
+  - Tek vurgu rengi (#2dd4bf), yalnızca durum ve seçim vurgularında
   - Üstte sağlık halkası + tek cümlelik durum + tek buton
   - Eksikler üstte ve net, kurulular sönük — göz sadece işine bakar
   - Kategori kutuları / çerçeve içinde çerçeve yok; ayrım boşluk ve ince çizgilerle
@@ -34,7 +34,13 @@ from worker import DownloadInstallWorker, WorkerSignals
 from security import SecurityManager
 from utils import is_component_installed
 from languages import LANGUAGES, LANG_ORDER, get as T
-from app_info import APP_VERSION, GITHUB_RELEASES_URL
+from app_info import (
+    APP_EMAIL,
+    APP_NAME,
+    APP_PUBLISHER,
+    APP_VERSION,
+    GITHUB_RELEASES_URL,
+)
 from updater import check_latest_release, download_update
 
 logger = logging.getLogger("RuntimeFix.ui")
@@ -49,8 +55,6 @@ C_MUTED    = "#8a8f98"   # ikincil metin
 C_DIM      = "#585d66"   # sönük (kurulu satırlar)
 C_DIMMER   = "#41454d"   # en sönük (kurulu etiketi)
 C_ACCENT   = "#2dd4bf"   # tek vurgu — sakin turkuaz (halka, seçim, odak)
-C_ACCENT_H = "#4ae0cd"   # vurgu hover
-C_ON_ACC   = "#062e29"   # vurgu üstü metin
 C_PRIM_BG  = "#ececee"   # birincil buton zemini (kırık beyaz)
 C_PRIM_FG  = "#141519"   # birincil buton yazısı
 C_PRIM_H   = "#ffffff"   # birincil hover
@@ -96,7 +100,9 @@ COMPONENT_DESCRIPTIONS = {
 
 def _get_tooltip(component: dict) -> str:
     name = component.get("name", "")
-    for key, desc in COMPONENT_DESCRIPTIONS.items():
+    for key, desc in sorted(
+        COMPONENT_DESCRIPTIONS.items(), key=lambda item: len(item[0]), reverse=True
+    ):
         if key.lower() in name.lower():
             return desc
     return ""
@@ -124,7 +130,9 @@ COMPONENT_SIZES = {
 
 def estimate_size_mb(component: dict) -> int:
     name = component.get("name", "")
-    for key, mb in COMPONENT_SIZES.items():
+    for key, mb in sorted(
+        COMPONENT_SIZES.items(), key=lambda item: len(item[0]), reverse=True
+    ):
         if key.lower() in name.lower():
             return mb
     return 20
@@ -173,8 +181,8 @@ def _beep(kind: str):
     try:
         flag = winsound.MB_ICONHAND if kind == "error" else winsound.MB_ICONASTERISK
         winsound.MessageBeep(flag)
-    except Exception:
-        pass
+    except OSError as exc:
+        logger.debug(f"System notification sound failed: {exc}")
 
 
 # ── Global stil ─────────────────────────────────────────────────────────────
@@ -695,7 +703,7 @@ class AboutDialog(QDialog):
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(icon)
 
-        title = QLabel(f"RuntimeFix v{version}")
+        title = QLabel(f"{APP_NAME} v{version}")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet(f"color:{C_TEXT};font-size:13pt;font-weight:600;")
         lay.addWidget(title)
@@ -705,7 +713,7 @@ class AboutDialog(QDialog):
         info.setStyleSheet(f"color:{C_MUTED};font-size:9pt;")
         lay.addWidget(info)
 
-        dev = QLabel("IzzmooPro — IzzmooPro@gmail.com")
+        dev = QLabel(f"{APP_PUBLISHER} — {APP_EMAIL}")
         dev.setAlignment(Qt.AlignmentFlag.AlignCenter)
         dev.setStyleSheet(f"color:{C_DIM};font-size:8pt;")
         lay.addWidget(dev)
@@ -791,11 +799,19 @@ class UpdateDownloader(QObject):
         self.info = info
         self.destination_dir = destination_dir
         self.signals = UpdateDownloadSignals()
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
 
     def run(self):
         try:
             self.signals.finished.emit(
-                download_update(self.info, self.destination_dir)
+                download_update(
+                    self.info,
+                    self.destination_dir,
+                    cancel_check=lambda: self._cancelled,
+                )
             )
         except Exception as exc:
             self.signals.error.emit(str(exc))
@@ -850,17 +866,19 @@ class MainWindow(QWidget):
         self._miss_count = 0
         self._status_base = ""
         self._repair_mode = False
+        self._close_pending = False
+        self._update_in_progress = False
+        self._pending_update_setup_path = ""
 
-        import sys as _sys, tempfile as _tf
-        if getattr(_sys, "frozen", False):
-            _log_dir = os.path.join(_tf.gettempdir(), "RuntimeFix_logs")
+        if getattr(sys, "frozen", False):
+            _log_dir = os.path.join(tempfile.gettempdir(), "RuntimeFix_logs")
         else:
             _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             _log_dir = os.path.join(_root, "logs")
         os.makedirs(_log_dir, exist_ok=True)
         self._log_path = os.path.join(_log_dir, "aio_runtime.log")
 
-        self.setWindowTitle("RuntimeFix")
+        self.setWindowTitle(APP_NAME)
         # Genişlik sabit (yatay boyutlandırma kapalı), dikey serbest.
         # 530px, 5 dilin en uzun metinlerini de kırpmadan taşır (ölçülerek seçildi).
         self.setFixedWidth(530)
@@ -1164,6 +1182,10 @@ class MainWindow(QWidget):
             self._repair_btn.setEnabled(True)
             self._repair_info_btn.setVisible(True)
             self._cancel_btn.setVisible(False)
+        if self._update_in_progress:
+            self._fix_btn.setEnabled(False)
+            self._repair_btn.setEnabled(False)
+            self._repair_info_btn.setEnabled(False)
 
     def _update_subline(self):
         lang = self._lang
@@ -1216,11 +1238,15 @@ class MainWindow(QWidget):
             self._on_update_error, Qt.ConnectionType.QueuedConnection)
         self._upd_worker.signals.result.connect(self._upd_thread.quit)
         self._upd_worker.signals.error.connect(self._upd_thread.quit)
+        self._upd_thread.finished.connect(self._cleanup_update_thread)
+        self._upd_thread.finished.connect(self._upd_worker.deleteLater)
+        self._upd_thread.finished.connect(self._upd_thread.deleteLater)
         self._upd_thread.started.connect(self._upd_worker.run)
         self._upd_thread.start()
 
     def _on_update_result(self, info: dict):
-        QTimer.singleShot(0, self._cleanup_update_thread)
+        if self._close_pending:
+            return
         mode = self._update_check_mode
         self._update_check_mode = "silent"
         self._update_info = info or {}
@@ -1244,7 +1270,8 @@ class MainWindow(QWidget):
             logger.info(f"[GÜNCELLEME] Sürüm güncel (v{self._version})")
 
     def _on_update_error(self, message: str):
-        QTimer.singleShot(0, self._cleanup_update_thread)
+        if self._close_pending:
+            return
         mode = self._update_check_mode
         self._update_check_mode = "silent"
         logger.warning(f"[GÜNCELLEME] Denetim tamamlanamadı: {message}")
@@ -1262,6 +1289,10 @@ class MainWindow(QWidget):
             self._update_btn.setText(T(self._lang, "update_btn") + " →")
 
     def _begin_update(self):
+        if self._update_in_progress or (
+            self._thread and self._thread.isRunning()
+        ):
+            return
         info = self._update_info
         if not info:
             self._check_updates("manual")
@@ -1291,6 +1322,9 @@ class MainWindow(QWidget):
         ):
             return
 
+        self._update_in_progress = True
+        self._set_busy(True)
+        self._refresh_hero()
         self._update_btn.setEnabled(False)
         self._update_lbl.setText(T(self._lang, "update_downloading"))
         destination = os.path.join(
@@ -1309,21 +1343,30 @@ class MainWindow(QWidget):
             self._upd_download_thread.quit)
         self._upd_downloader.signals.error.connect(
             self._upd_download_thread.quit)
+        self._upd_download_thread.finished.connect(
+            self._cleanup_update_download_thread)
+        self._upd_download_thread.finished.connect(
+            self._upd_downloader.deleteLater)
+        self._upd_download_thread.finished.connect(
+            self._upd_download_thread.deleteLater)
         self._upd_download_thread.started.connect(self._upd_downloader.run)
         self._upd_download_thread.start()
 
     def _on_update_downloaded(self, path: str):
-        QTimer.singleShot(0, self._cleanup_update_download_thread)
-        self._update_btn.setEnabled(True)
+        if self._close_pending:
+            return
         self._update_lbl.setText(T(self._lang, "update_starting"))
-        try:
-            subprocess.Popen([path], cwd=os.path.dirname(path))
-            QTimer.singleShot(500, QApplication.instance().quit)
-        except OSError as exc:
-            self._on_update_download_error(str(exc))
+        self._pending_update_setup_path = path
+        self._close_pending = True
+        self.setEnabled(False)
+        self._complete_pending_close()
 
     def _on_update_download_error(self, message: str):
-        QTimer.singleShot(0, self._cleanup_update_download_thread)
+        if self._close_pending:
+            return
+        self._update_in_progress = False
+        self._set_busy(self._state == "busy")
+        self._refresh_hero()
         self._update_btn.setEnabled(True)
         self._refresh_update_bar()
         logger.warning(f"[GÜNCELLEME] İndirme tamamlanamadı: {message}")
@@ -1339,16 +1382,14 @@ class MainWindow(QWidget):
         webbrowser.open(GITHUB_RELEASES_URL)
 
     def _cleanup_update_thread(self):
-        if self._upd_thread:
-            self._upd_thread.wait(3000)
         self._upd_thread = None
         self._upd_worker = None
+        self._complete_pending_close()
 
     def _cleanup_update_download_thread(self):
-        if self._upd_download_thread:
-            self._upd_download_thread.wait(3000)
         self._upd_download_thread = None
         self._upd_downloader = None
+        self._complete_pending_close()
 
     # ── tarama ──────────────────────────────────────────────────────────────
     def _on_main_btn(self):
@@ -1369,11 +1410,15 @@ class MainWindow(QWidget):
         self._scan_worker.signals.done.connect(
             self._on_scan_done, Qt.ConnectionType.QueuedConnection)
         self._scan_worker.signals.done.connect(self._scan_thread.quit)
+        self._scan_thread.finished.connect(self._cleanup_scan_thread)
+        self._scan_thread.finished.connect(self._scan_worker.deleteLater)
+        self._scan_thread.finished.connect(self._scan_thread.deleteLater)
         self._scan_thread.started.connect(self._scan_worker.run)
         self._scan_thread.start()
 
     def _on_scan_done(self, results: list):
-        QTimer.singleShot(0, self._cleanup_scan_thread)
+        if self._close_pending:
+            return
         self._ok_count = sum(1 for _, inst in results if inst)
         self._miss_count = len(results) - self._ok_count
         logger.info(f"[TARAMA] Bitti — {self._ok_count} kurulu / {self._miss_count} eksik")
@@ -1412,14 +1457,15 @@ class MainWindow(QWidget):
         self._state = "ready"
         self._refresh_hero()
         self._refresh_headers()
+        if self._update_in_progress:
+            self._set_busy(True)
         self._on_search(self._search_box.text())
         # Not: taramada ses yok — ses yalnızca yükleme bittiğinde çalar.
 
     def _cleanup_scan_thread(self):
-        if self._scan_thread:
-            self._scan_thread.wait(3000)
         self._scan_thread = None
         self._scan_worker = None
+        self._complete_pending_close()
 
     # ── seçim / arama ───────────────────────────────────────────────────────
     def _on_row_toggled(self, name: str, checked: bool):
@@ -1489,6 +1535,9 @@ class MainWindow(QWidget):
         sig.restart_required.connect(self._on_restart_required)
         sig.finished.connect(self._on_finished, Qt.ConnectionType.QueuedConnection)
         sig.finished.connect(self._thread.quit)
+        self._thread.finished.connect(self._cleanup_install_thread)
+        self._thread.finished.connect(self._worker.deleteLater)
+        self._thread.finished.connect(self._thread.deleteLater)
         self._thread.started.connect(self._worker.run)
         self._thread.start()
 
@@ -1533,6 +1582,8 @@ class MainWindow(QWidget):
                 break
 
     def _on_restart_required(self):
+        if self._close_pending:
+            return
         dlg = QMessageBox(self)
         dlg.setWindowTitle(T(self._lang, "restart_title"))
         dlg.setText(T(self._lang, "restart_msg"))
@@ -1543,9 +1594,16 @@ class MainWindow(QWidget):
                       QMessageBox.ButtonRole.RejectRole)
         dlg.exec()
         if dlg.clickedButton() == btn_now:
-            subprocess.run(["shutdown", "/r", "/t", "0"], check=False)
+            shutdown = os.path.join(
+                os.environ.get("SystemRoot", r"C:\Windows"),
+                "System32",
+                "shutdown.exe",
+            )
+            subprocess.run([shutdown, "/r", "/t", "0"], check=False)
 
     def _on_finished(self, success: bool):
+        if self._close_pending:
+            return
         n_ok, n_err = len(self._installed_names), len(self._failed)
         if success and not self._failed:
             logger.info(f"[KURULUM] Tamamlandı — {n_ok} bileşen kuruldu")
@@ -1554,7 +1612,6 @@ class MainWindow(QWidget):
                            f"{n_err} başarısız: {', '.join(self._failed)}")
         else:
             logger.info("[KURULUM] İptal edildi")
-        QTimer.singleShot(0, self._cleanup_install_thread)
         self._set_busy(False)
         self._prog_wrap.setVisible(False)
         self._state = "ready"
@@ -1574,14 +1631,15 @@ class MainWindow(QWidget):
             self._subline.setText(T(lang, "status_cancelled"))
 
     def _cleanup_install_thread(self):
-        if self._thread:
-            self._thread.wait(3000)
         self._thread = None
         self._worker = None
+        self._complete_pending_close()
 
     def _set_busy(self, busy: bool):
         self._search_box.setEnabled(not busy)
         self._lang_btn.setEnabled(not busy)
+        self._about_btn.setEnabled(not busy)
+        self._update_btn.setEnabled(not busy and not self._update_in_progress)
         self._miss_header.action.setEnabled(not busy)
         self._repair_btn.setEnabled(not busy)
         for row in self._rows:
@@ -1600,15 +1658,53 @@ class MainWindow(QWidget):
         ).exec()
 
     def closeEvent(self, event):
+        if not self._running_threads():
+            event.accept()
+            return
+
         if self._thread and self._thread.isRunning():
             should_close = ask_question(
                 self, T(self._lang, "close_title"), T(self._lang, "close_msg"),
                 self._lang, default_yes=False)
-            if should_close:
-                if self._worker:
-                    self._worker.cancel()
-                event.accept()
-            else:
+            if not should_close:
                 event.ignore()
-        else:
-            event.accept()
+                return
+            if self._worker:
+                self._worker.cancel()
+
+        if self._upd_downloader:
+            self._upd_downloader.cancel()
+        self._close_pending = True
+        self.setEnabled(False)
+        event.ignore()
+
+    def _running_threads(self) -> list[QThread]:
+        threads = (
+            self._thread,
+            self._scan_thread,
+            self._upd_thread,
+            self._upd_download_thread,
+        )
+        return [thread for thread in threads if thread and thread.isRunning()]
+
+    def _complete_pending_close(self):
+        if self._close_pending and not self._running_threads():
+            if self._pending_update_setup_path:
+                self._launch_pending_update()
+            else:
+                self._close_pending = False
+                QTimer.singleShot(0, self.close)
+
+    def _launch_pending_update(self):
+        path = self._pending_update_setup_path
+        self._pending_update_setup_path = ""
+        try:
+            subprocess.Popen([path], cwd=os.path.dirname(path))
+        except OSError as exc:
+            self._close_pending = False
+            self._update_in_progress = False
+            self.setEnabled(True)
+            self._set_busy(self._state == "busy")
+            self._on_update_download_error(str(exc))
+            return
+        QTimer.singleShot(500, QApplication.instance().quit)

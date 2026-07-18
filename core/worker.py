@@ -11,7 +11,13 @@ from typing import List
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from downloader import download_file, DownloadError, CACHE_DIR, resolve_filename_from_url, find_cached
+from downloader import (
+    DownloadError,
+    download_file,
+    find_cached,
+    get_cache_dir,
+    resolve_filename_from_url,
+)
 from installer import install_component, InstallError, InstallResult
 from security import SecurityManager, SecurityError
 
@@ -56,10 +62,6 @@ class DownloadInstallWorker(QObject):
         self._had_error     = False
         self._restart_needed = False
 
-    @property
-    def is_cancelled(self):
-        return self._cancelled
-
     def cancel(self):
         self._cancelled = True
         self.signals.status.emit("Cancelling… please wait.")
@@ -101,7 +103,7 @@ class DownloadInstallWorker(QObject):
                 # Check cache first (case-insensitive — sunucu büyük .EXE dönebilir)
                 _hint    = comp.get("filename_hint")
                 _fname   = _hint or resolve_filename_from_url(url)
-                _cached  = find_cached(CACHE_DIR, _fname)
+                _cached = find_cached(get_cache_dir(), _fname)
                 if _cached:
                     self.signals.status.emit(f"Using cached file for {name}…")
                 else:
@@ -114,7 +116,7 @@ class DownloadInstallWorker(QObject):
 
                 try:
                     file_path = download_file(
-                        url, "",
+                        url,
                         progress_cb=_prog,
                         cancel_check=lambda: self._cancelled,
                         filename_hint=comp.get("filename_hint"),
@@ -140,7 +142,7 @@ class DownloadInstallWorker(QObject):
                     self.security.verify_sha256(file_path, comp.get("sha256", ""))
                 except SecurityError as exc:
                     self._emit_error(name, self._sha_mismatch_message(comp, name, exc))
-                    os.remove(file_path)
+                    self._remove_file(file_path)
                     continue
 
                 downloaded.append({"component": comp, "path": file_path})
@@ -171,10 +173,7 @@ class DownloadInstallWorker(QObject):
                         self.security.verify_sha256(path, comp.get("sha256", ""))
                     except SecurityError as exc:
                         self._emit_error(name, self._sha_mismatch_message(comp, name, exc))
-                        try:
-                            os.remove(path)
-                        except OSError:
-                            pass
+                        self._remove_file(path)
                         continue
 
                 try:
@@ -182,10 +181,21 @@ class DownloadInstallWorker(QObject):
                 except InstallError as exc:
                     self._emit_error(name, f"Could not install {name}.\n\n{exc}")
                     continue
+                except Exception as exc:
+                    logger.exception(f"Unexpected install error for {name}")
+                    self._emit_error(
+                        name,
+                        f"Could not install {name} because of an unexpected "
+                        f"error.\n\n{exc}",
+                    )
+                    continue
 
                 if result.skipped:
-                    self.signals.status.emit(f"{name} — skipped (cannot install automatically).")
-                    logger.info(f"Skipped: {name}")
+                    self._emit_error(
+                        name,
+                        result.message
+                        or f"{name} cannot be installed automatically.",
+                    )
                 elif result.success:
                     if result.restart_required:
                         self._restart_needed = True
@@ -208,8 +218,6 @@ class DownloadInstallWorker(QObject):
         except Exception as exc:
             logger.exception("Unexpected worker error")
             self._emit_error("Installer", str(exc))
-            self._had_error = True
-
         finally:
             self.signals.progress.emit(100)
             if self._restart_needed and not self._cancelled:
@@ -241,3 +249,11 @@ class DownloadInstallWorker(QObject):
         self._had_error = True
         logger.error(f"[{name}] {detail}")
         self.signals.component_error.emit(name, detail)
+
+    @staticmethod
+    def _remove_file(path: str) -> None:
+        try:
+            if path and os.path.exists(path):
+                os.remove(path)
+        except OSError as exc:
+            logger.warning(f"Could not remove invalid cache file {path!r}: {exc}")

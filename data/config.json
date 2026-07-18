@@ -230,8 +230,8 @@
     {
       "category": ".NET Desktop Runtime",
       "name": ".NET Desktop Runtime 8.0 (x86)",
-      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0.15/windowsdesktop-runtime-8.0.15-win-x86.exe",
-      "sha256": "fb47085b8d85c2c46738f110bd870ad5a3f4e2780d3f38b14523f8f79297ad94",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0.29/windowsdesktop-runtime-8.0.29-win-x86.exe",
+      "sha256": "f852986af541324f515ab916fdbdce6d038c4506dfeda43af0aed18dce721edd",
       "silent_args": [
         "/quiet",
         "/norestart"
@@ -242,8 +242,8 @@
     {
       "category": ".NET Desktop Runtime",
       "name": ".NET Desktop Runtime 8.0 (x64)",
-      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0.15/windowsdesktop-runtime-8.0.15-win-x64.exe",
-      "sha256": "6b7f9390184892ce65e5405dacae596d28508c5b11a6ef292120399a1784b3e8",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0.29/windowsdesktop-runtime-8.0.29-win-x64.exe",
+      "sha256": "c0ffa16efeb7ef3ac8100a6a9d7089d9c2904ee89f1815557a79a91be584f775",
       "silent_args": [
         "/quiet",
         "/norestart"
@@ -254,8 +254,8 @@
     {
       "category": ".NET Desktop Runtime",
       "name": ".NET Desktop Runtime 9.0 (x86)",
-      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/9.0.4/windowsdesktop-runtime-9.0.4-win-x86.exe",
-      "sha256": "4dbd41e328e150385d55f8ac50c0c960505ee88265020cd4c74acd46ce6e55c2",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/9.0.18/windowsdesktop-runtime-9.0.18-win-x86.exe",
+      "sha256": "a90bc401a7838f036a4d615ca7031099b4b950ed6a8f59f59c44150c6ad7d648",
       "silent_args": [
         "/quiet",
         "/norestart"
@@ -266,8 +266,8 @@
     {
       "category": ".NET Desktop Runtime",
       "name": ".NET Desktop Runtime 9.0 (x64)",
-      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/9.0.4/windowsdesktop-runtime-9.0.4-win-x64.exe",
-      "sha256": "526dd9b55389fb76816bbac42c97c17b802ebcd2107e73ffb2c77a74efd1fed1",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/9.0.18/windowsdesktop-runtime-9.0.18-win-x64.exe",
+      "sha256": "12cd00688fc9f8f5187d25911bf656db61998c264f03eef4022ff2d9321d6982",
       "silent_args": [
         "/quiet",
         "/norestart"
@@ -431,7 +431,7 @@
         "/s"
       ],
       "detect_type": "java",
-      "detect_value": ""
+      "detect_value": "x86"
     },
     {
       "category": "Microsoft Runtimes",
@@ -443,7 +443,7 @@
         "/s"
       ],
       "detect_type": "java",
-      "detect_value": ""
+      "detect_value": "x64"
     },
     {
       "category": "Developer Tools",
@@ -460,8 +460,8 @@
     {
       "category": "Developer Tools",
       "name": ".NET SDK 8.0 (x64)",
-      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/8.0.408/dotnet-sdk-8.0.408-win-x64.exe",
-      "sha256": "0a728a68d4cf7a146d18086b213f3dae39db592e5c36165218e79c2e2354388e",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/8.0.423/dotnet-sdk-8.0.423-win-x64.exe",
+      "sha256": "79437444249fad67a6bba966105dfb9534f37fa963e122a4cce034837074e02c",
       "silent_args": [
         "/quiet",
         "/norestart"
@@ -472,8 +472,8 @@
     {
       "category": "Developer Tools",
       "name": ".NET SDK 9.0 (x64)",
-      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/9.0.203/dotnet-sdk-9.0.203-win-x64.exe",
-      "sha256": "f19115d0d8b249576a39418486132da5f339560911c59745de242a4e773d7bcd",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/9.0.316/dotnet-sdk-9.0.316-win-x64.exe",
+      "sha256": "591130b2499225974b5347bc1bcfcc93796abbdd9115db3b5a8b6a1fcec4e3f8",
       "silent_args": [
         "/quiet",
         "/norestart"
@@ -508,8 +508,8 @@
     {
       "category": ".NET Desktop Runtime",
       "name": "ASP.NET Core Runtime 8.0 (x64)",
-      "url": "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/8.0.15/aspnetcore-runtime-8.0.15-win-x64.exe",
-      "sha256": "20ae532d51d7cf034bec660c16d2c110198e2c6ace17d7a1d2d4262ceed44a05",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/8.0.29/aspnetcore-runtime-8.0.29-win-x64.exe",
+      "sha256": "4264934f253fbb689255a9a497a60588b8d51e7034ae3146c4c8be17d336021c",
       "silent_args": [
         "/quiet",
         "/norestart"
@@ -520,8 +520,8 @@
     {
       "category": ".NET Desktop Runtime",
       "name": "ASP.NET Core Runtime 9.0 (x64)",
-      "url": "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/9.0.4/aspnetcore-runtime-9.0.4-win-x64.exe",
-      "sha256": "c263a60645f3ccab8d7635d4348ff444abf2a5812fc44f22b7ff5902c708819c",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/9.0.18/aspnetcore-runtime-9.0.18-win-x64.exe",
+      "sha256": "f1f9703c79c91fb41da3443a00ec6a86a177613c901ac6de0f8606b1f26b5501",
       "silent_args": [
         "/quiet",
         "/norestart"

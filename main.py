@@ -4,7 +4,6 @@ main.py - Application entry point for RuntimeFix
 """
 
 import json
-import logging
 import os
 import platform
 import sys
@@ -14,12 +13,12 @@ import traceback
 _ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_ROOT_DIR, "core"))
 
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMessageBox  # noqa: E402
 
-from security import SecurityManager
-from ui import MainWindow, configure_application
-from utils import is_admin, relaunch_as_admin, setup_logging
-from app_info import APP_VERSION
+from security import SecurityManager  # noqa: E402
+from ui import MainWindow, configure_application  # noqa: E402
+from utils import is_admin, relaunch_as_admin, setup_logging  # noqa: E402
+from app_info import APP_NAME, APP_PUBLISHER, APP_VERSION  # noqa: E402
 
 logger = setup_logging()
 
@@ -51,7 +50,8 @@ def main() -> None:
     logger.info("Program başlatılıyor...")
 
     app = QApplication(sys.argv)
-    app.setApplicationName("RuntimeFix")
+    app.setApplicationName(APP_NAME)
+    app.setOrganizationName(APP_PUBLISHER)
     app.setApplicationVersion(APP_VERSION)
     configure_application(app)
 
@@ -120,8 +120,5 @@ if __name__ == "__main__":
                 "Teknik ayrıntılar RuntimeFix log dosyasına kaydedildi.",
             )
         except Exception:
-            try:
-                print(f"RuntimeFix beklenmeyen hata:\n{tb}", file=sys.stderr)
-            except Exception:
-                pass
+            print(f"RuntimeFix beklenmeyen hata:\n{tb}", file=sys.stderr)
         sys.exit(1)

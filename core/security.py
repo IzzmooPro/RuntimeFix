@@ -9,15 +9,17 @@ Responsibilities:
 """
 
 import hashlib
+import hmac
 import logging
+import re
 from pathlib import Path
 from urllib.parse import urlparse
-from typing import List, Optional
+from typing import Optional, Sequence
 
 logger = logging.getLogger("RuntimeFix.security")
 
 # Default whitelist – also loaded dynamically from data/config.json at startup
-DEFAULT_ALLOWED_DOMAINS: List[str] = [
+DEFAULT_ALLOWED_DOMAINS: list[str] = [
     "builds.dotnet.microsoft.com",
     "download.microsoft.com",
     "download.visualstudio.microsoft.com",
@@ -44,15 +46,16 @@ class SecurityManager:
     Parameters
     ----------
     allowed_domains:
-        Iterable of hostnames that are considered trusted.
-        Sub-domains of a whitelisted host are automatically accepted
-        (e.g. ``builds.dotnet.microsoft.com`` matches ``dotnet.microsoft.com``).
+        Iterable of hostnames that are considered trusted. Subdomains of a
+        whitelisted hostname are accepted (for example, ``cdn.example.com`` is
+        accepted when ``example.com`` is listed).
     """
 
-    def __init__(self, allowed_domains: Optional[List[str]] = None) -> None:
-        self._allowed_domains: List[str] = list(
+    def __init__(self, allowed_domains: Optional[Sequence[str]] = None) -> None:
+        domains = (
             allowed_domains if allowed_domains is not None else DEFAULT_ALLOWED_DOMAINS
         )
+        self._allowed_domains = self._normalise_domains(domains)
 
     # ------------------------------------------------------------------
     # Public API
@@ -74,6 +77,16 @@ class SecurityManager:
                 f"Non-HTTPS URL rejected: {url!r}. Only HTTPS downloads are permitted."
             )
 
+        if parsed.username or parsed.password:
+            raise SecurityError(f"URL credentials are not permitted: {url!r}.")
+        try:
+            if parsed.port not in (None, 443):
+                raise SecurityError(
+                    f"Non-standard HTTPS port rejected: {parsed.port}."
+                )
+        except ValueError as exc:
+            raise SecurityError(f"Invalid URL port: {url!r}.") from exc
+
         # 2 – Domain whitelist
         hostname = (parsed.hostname or "").lower()
         if not self._is_allowed_host(hostname):
@@ -93,18 +106,24 @@ class SecurityManager:
         *expected_hash* is empty/None — indirilen hiçbir dosya bütünlük
         denetimi olmadan kuruluma geçemez; config'e hash eklemek zorunludur.
         """
-        if not expected_hash:
+        expected = (expected_hash or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", expected):
             raise SecurityError(
-                f"No SHA-256 configured for {Path(file_path).name}. "
-                f"Integrity cannot be verified — add the sha256 value to "
-                f"data/config.json."
+                f"Invalid or missing SHA-256 for {Path(file_path).name}. "
+                "A 64-character hexadecimal digest is required."
             )
 
-        computed = self._compute_sha256(file_path)
-        if computed.lower() != expected_hash.strip().lower():
+        try:
+            computed = self._compute_sha256(file_path)
+        except OSError as exc:
+            raise SecurityError(
+                f"Could not read {Path(file_path).name} for SHA-256 verification: "
+                f"{exc}"
+            ) from exc
+        if not hmac.compare_digest(computed, expected):
             raise SecurityError(
                 f"SHA-256 mismatch for {Path(file_path).name}!\n"
-                f"  Expected : {expected_hash.lower()}\n"
+                f"  Expected : {expected}\n"
                 f"  Computed : {computed}"
             )
 
@@ -120,6 +139,29 @@ class SecurityManager:
             if hostname == domain or hostname.endswith(f".{domain}"):
                 return True
         return False
+
+    @staticmethod
+    def _normalise_domains(domains: Sequence[str]) -> list[str]:
+        normalised: list[str] = []
+        for raw_domain in domains:
+            domain = str(raw_domain).strip().lower().rstrip(".")
+            if (
+                not domain
+                or "://" in domain
+                or "/" in domain
+                or ":" in domain
+                or not re.fullmatch(
+                    r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*"
+                    r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?",
+                    domain,
+                )
+            ):
+                raise ValueError(f"Invalid allowed domain: {raw_domain!r}")
+            if domain not in normalised:
+                normalised.append(domain)
+        if not normalised:
+            raise ValueError("At least one allowed download domain is required.")
+        return normalised
 
     @staticmethod
     def _compute_sha256(file_path: str) -> str:

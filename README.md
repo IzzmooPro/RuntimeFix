@@ -1,4 +1,4 @@
-# 🛠️ RuntimeFix v2.5
+# 🛠️ RuntimeFix v3.0.0
 
 <p align="center">
   <img src="assets/runtimefix-logo.png" width="128" alt="RuntimeFix logosu">
@@ -10,7 +10,7 @@
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Components](https://img.shields.io/badge/Components-46-orange)
 
-**RuntimeFix v2.5**, sisteminizde eksik olan runtime bileşenlerini otomatik olarak tespit edip tek tıkla kuran modern bir araçtır. Oyun oynamadan önce veya bir uygulama çalıştırırken karşılaşılan "Visual C++ bulunamadı", ".NET Runtime eksik" gibi hata mesajlarına son verir.
+**RuntimeFix v3.0.0**, sisteminizde eksik olan runtime bileşenlerini otomatik olarak tespit edip tek tıkla kuran modern bir araçtır. Oyun oynamadan önce veya bir uygulama çalıştırırken karşılaşılan "Visual C++ bulunamadı", ".NET Runtime eksik" gibi hata mesajlarına son verir.
 
 ---
 
@@ -162,8 +162,9 @@ Program bileşenlerin kurulu olup olmadığını şu yöntemlerle kontrol eder:
 
 ### Güvenlik
 - Tüm indirmeler yalnızca HTTPS üzerinden yapılır
-- İzin verilen domain listesi: Microsoft, Oracle, NVIDIA, OpenAL
+- İzin verilen domain listesi: Microsoft, Oracle, NVIDIA, OpenAL, LunarG
 - SHA-256 hash doğrulaması her dosya için zorunludur
+- Uygulama güncellemelerinde yalnızca sürümle birebir eşleşen setup asset'i kabul edilir
 
 ### Sessiz Kurulum
 Her bileşen arka planda, kullanıcıya kurulum ekranı göstermeden yüklenir. Eski InstallShield tabanlı installer'lar (VC++ 2005-2010) için otomatik argüman deneme zinciri uygulanır.
@@ -173,9 +174,9 @@ Her bileşen arka planda, kullanıcıya kurulum ekranı göstermeden yüklenir. 
 ## 📋 Bağımlılıklar
 
 ```
-PyQt6>=6.6.0
-requests>=2.31.0
-urllib3>=2.0.0
+PyQt6>=6.6.0,<7
+requests>=2.31.0,<3
+urllib3>=2.0.0,<3
 ```
 
 ---
@@ -186,6 +187,14 @@ urllib3>=2.0.0
 python -m compileall -q main.py core tests
 python -m unittest discover -s tests -v
 ```
+
+---
+
+## 🔢 Sürümleme
+
+RuntimeFix 3.x sürümleri SemVer düzenini kullanır: hata düzeltmeleri `3.0.1`,
+geriye uyumlu özellikler `3.1.0`, büyük/uyumsuz değişiklikler `4.0.0` olarak
+ilerler.
 
 ---
 

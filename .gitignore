@@ -2,6 +2,9 @@
 __pycache__/
 *.pyc
 *.pyo
+.coverage
+coverage.json
+htmlcov/
 
 # Offline cache (GB'larca installer) ve loglar
 downloads/

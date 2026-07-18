@@ -1,6 +1,6 @@
 # RuntimeFix Python dependencies
 # Install with: pip install -r requirements.txt
 
-PyQt6>=6.6.0
-requests>=2.31.0
-urllib3>=2.0.0
+PyQt6>=6.6.0,<7
+requests>=2.31.0,<3
+urllib3>=2.0.0,<3

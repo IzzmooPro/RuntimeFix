@@ -5,8 +5,11 @@ installer.py - Silent install engine for RuntimeFix.
 
 import logging
 import os
+import stat
 import subprocess
 import tempfile
+import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
@@ -29,20 +32,15 @@ class InstallError(Exception):
     pass
 
 
+@dataclass
 class InstallResult:
-    def __init__(self, component_name, return_code, success,
-                 restart_required=False, skipped=False, message="", log_path=""):
-        self.component_name = component_name
-        self.return_code = return_code
-        self.success = success
-        self.restart_required = restart_required
-        self.skipped = skipped
-        self.message = message
-        self.log_path = log_path
-
-    def __repr__(self):
-        return (f"<InstallResult name={self.component_name!r} rc={self.return_code} "
-                f"success={self.success} restart={self.restart_required}>")
+    component_name: str
+    return_code: int
+    success: bool
+    restart_required: bool = False
+    skipped: bool = False
+    message: str = ""
+    log_path: str = ""
 
 
 def install_component(component: dict, file_path: str) -> InstallResult:
@@ -106,33 +104,7 @@ def _install_vcredist_installshield(name: str, file_path: str) -> InstallResult:
         [file_path, "/q"],
         [file_path, "/s"],
     ]
-    last_rc = -1
-    for cmd in attempts:
-        try:
-            si = subprocess.STARTUPINFO()
-            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            si.wShowWindow = 0
-            result = subprocess.run(
-                cmd, check=False, capture_output=True, text=True,
-                timeout=INSTALL_TIMEOUT,
-                startupinfo=si,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-            rc = result.returncode
-            if rc in (0, 3010, 1638, 1641):
-                logger.info(f"{name} install OK with args {cmd[1:]}: rc={rc}")
-                restart = rc in (3010, 1641)
-                return InstallResult(name, rc, True, restart_required=restart,
-                                     message="Installed successfully.")
-            if rc == 1602:
-                break
-            last_rc = rc
-            logger.debug(f"{name} attempt {cmd[1:]} → rc={rc}, trying next...")
-        except Exception as exc:
-            logger.debug(f"{name} attempt failed: {exc}")
-    return InstallResult(name, last_rc, False,
-                         message=f"{name} installation failed (rc={last_rc}). "
-                                  "Try running the installer manually.")
+    return _run_install_attempts(name, attempts)
 
 
 def _install_vcredist2005(name: str, file_path: str) -> InstallResult:
@@ -146,33 +118,35 @@ def _install_vcredist2005(name: str, file_path: str) -> InstallResult:
         [file_path, "/Q"],              # Sadece sessiz
         [file_path, "/s"],              # Setup.exe tarzı
     ]
-    last_rc = -1
+    return _run_install_attempts(name, attempts)
+
+
+def _run_install_attempts(
+    name: str, attempts: List[List[str]]
+) -> InstallResult:
+    last_result = InstallResult(name, -1, False)
     for cmd in attempts:
         try:
-            si = subprocess.STARTUPINFO()
-            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            si.wShowWindow = 0
-            result = subprocess.run(
-                cmd, check=False, capture_output=True, text=True,
-                timeout=INSTALL_TIMEOUT,
-                startupinfo=si,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-            rc = result.returncode
-            if rc in (0, 3010, 1638):
-                logger.info(f"VC++ 2005 install OK with args {cmd[1:]}: rc={rc}")
-                restart = rc == 3010
-                return InstallResult(name, rc, True, restart_required=restart,
-                                     message="Installed successfully.")
-            if rc == 1602:  # Kullanıcı iptal
-                break
-            last_rc = rc
-            logger.debug(f"VC++ 2005 attempt {cmd[1:]} → rc={rc}, trying next...")
-        except Exception as exc:
-            logger.debug(f"VC++ 2005 attempt failed: {exc}")
-    return InstallResult(name, last_rc, False,
-                         message=f"VC++ 2005 installation failed (rc={last_rc}). "
-                                  "Try running the installer manually.")
+            result = _run_command(cmd, name, "")
+        except InstallError as exc:
+            logger.debug(f"{name} attempt failed: {exc}")
+            continue
+        if result.success:
+            logger.info(f"{name} install OK with args {cmd[1:]}: "
+                        f"rc={result.return_code}")
+            return result
+        last_result = result
+        if result.return_code == 1602:
+            break
+        logger.debug(
+            f"{name} attempt {cmd[1:]} → rc={result.return_code}, "
+            "trying next..."
+        )
+    last_result.message = (
+        f"{name} installation failed (rc={last_result.return_code}). "
+        "Try running the installer manually."
+    )
+    return last_result
 
 
 def _install_from_zip(name: str, zip_path: str, inner_exe: str,
@@ -181,66 +155,96 @@ def _install_from_zip(name: str, zip_path: str, inner_exe: str,
     ZIP arşivini geçici klasöre çıkarır ve içindeki *inner_exe* dosyasını
     silent_args ile sessizce çalıştırır (örn. OpenAL oalinst.exe /s).
     """
-    import shutil
-    import zipfile
-
-    extract_dir = os.path.join(tempfile.gettempdir(),
-                               f"RuntimeFix_zip_{Path(zip_path).stem}")
-    if os.path.exists(extract_dir):
-        try:
-            shutil.rmtree(extract_dir)
-        except OSError as exc:
-            logger.warning(f"Could not remove old zip extract dir: {exc}")
-    os.makedirs(extract_dir, exist_ok=True)
-
     try:
-        with zipfile.ZipFile(zip_path) as zf:
-            zf.extractall(extract_dir)
-    except (zipfile.BadZipFile, OSError) as exc:
-        return InstallResult(name, -1, False,
-                             message=f"Could not extract {Path(zip_path).name}: {exc}")
+        with tempfile.TemporaryDirectory(prefix="RuntimeFix_zip_") as extract_dir:
+            _safe_extract_zip(zip_path, extract_dir)
 
-    # inner_exe'yi çıkarılan ağaçta büyük/küçük harf duyarsız ara
-    target = None
-    wanted = inner_exe.lower()
-    for root, _dirs, files in os.walk(extract_dir):
-        for fn in files:
-            if fn.lower() == wanted:
-                target = os.path.join(root, fn)
-                break
-        if target:
-            break
+            # inner_exe'yi çıkarılan ağaçta büyük/küçük harf duyarsız ara
+            target = None
+            wanted = Path(inner_exe).name.lower()
+            for root, _dirs, files in os.walk(extract_dir):
+                for filename in files:
+                    if filename.lower() == wanted:
+                        target = os.path.join(root, filename)
+                        break
+                if target:
+                    break
 
-    if not target:
-        return InstallResult(name, -1, False,
-                             message=f"{inner_exe} not found inside {Path(zip_path).name}.")
+            if not target:
+                return InstallResult(
+                    name,
+                    -1,
+                    False,
+                    message=(
+                        f"{inner_exe} not found inside {Path(zip_path).name}."
+                    ),
+                )
 
-    logger.info(f"{name}: running {target} {' '.join(silent_args)}")
-    return _run_command([target] + silent_args, name, "")
+            logger.info(f"{name}: running {target} {' '.join(silent_args)}")
+            return _run_command([target] + silent_args, name, "")
+    except (zipfile.BadZipFile, OSError, InstallError) as exc:
+        return InstallResult(
+            name,
+            -1,
+            False,
+            message=f"Could not extract or run {Path(zip_path).name}: {exc}",
+        )
+
+
+def _safe_extract_zip(zip_path: str, destination: str) -> None:
+    """Extract a ZIP only when every member stays inside *destination*."""
+    destination_path = Path(destination).resolve()
+    with zipfile.ZipFile(zip_path) as archive:
+        for member in archive.infolist():
+            member_path = Path(member.filename)
+            mode = member.external_attr >> 16
+            target_path = (destination_path / member_path).resolve()
+            if (
+                member_path.is_absolute()
+                or member_path.drive
+                or ".." in member_path.parts
+                or ":" in member.filename
+                or os.path.commonpath([destination_path, target_path])
+                != str(destination_path)
+                or stat.S_ISLNK(mode)
+            ):
+                raise InstallError(
+                    f"Unsafe ZIP entry rejected: {member.filename!r}"
+                )
+        archive.extractall(destination_path)
 
 
 def _install_directx_redist(name: str, file_path: str) -> InstallResult:
     """DirectX Jun 2010 redist is a self-extractor; extract then run DXSETUP."""
-    import shutil
-    extract_dir = os.path.join(tempfile.gettempdir(), "DXRedist_AIO")
-    # Temiz başlangıç — önceki çıkarma kalıntısı overwrite dialogu açabilir
-    if os.path.exists(extract_dir):
-        try:
-            shutil.rmtree(extract_dir)
-        except OSError as exc:
-            logger.warning(f"Could not remove old DXRedist dir: {exc}")
-    os.makedirs(extract_dir, exist_ok=True)
-    logger.info(f"DirectX redist: extracting to {extract_dir}")
+    with tempfile.TemporaryDirectory(prefix="RuntimeFix_DXRedist_") as extract_dir:
+        logger.info(f"DirectX redist: extracting to {extract_dir}")
+        extract_result = _run_command(
+            [file_path, "/Q", "/Y", f"/T:{extract_dir}", "/C"],
+            f"{name} [extract]",
+            "",
+        )
+        if not extract_result.success:
+            return InstallResult(
+                name,
+                extract_result.return_code,
+                False,
+                message=(
+                    "DirectX arşivi çıkarılamadı "
+                    f"(kod {extract_result.return_code})."
+                ),
+            )
 
-    _run_command([file_path, "/Q", "/Y", f"/T:{extract_dir}", "/C"], f"{name} [extract]", "")
+        dxsetup = os.path.join(extract_dir, "DXSETUP.exe")
+        if not os.path.isfile(dxsetup):
+            return InstallResult(
+                name,
+                -1,
+                False,
+                message="DXSETUP.exe çıkarılan DirectX arşivinde bulunamadı.",
+            )
 
-    dxsetup = os.path.join(extract_dir, "DXSETUP.exe")
-    if not os.path.exists(dxsetup):
-        return InstallResult(name, -1, False,
-                             message=f"DXSETUP.exe not found after extraction in {extract_dir}.")
-
-    logger.info("DirectX redist: running DXSETUP.exe /silent")
-    return _run_command([dxsetup, "/silent"], name, "")
+        logger.info("DirectX redist: running DXSETUP.exe /silent")
+        return _run_command([dxsetup, "/silent"], name, "")
 
 
 def _run_command(cmd: List[str], name: str, log_path: str) -> InstallResult:
@@ -261,6 +265,8 @@ def _run_command(cmd: List[str], name: str, log_path: str) -> InstallResult:
         raise InstallError(f"Executable not found for {name!r}: {exc}") from exc
     except PermissionError as exc:
         raise InstallError(f"Permission denied for {name!r}: {exc}") from exc
+    except OSError as exc:
+        raise InstallError(f"Could not start installer for {name!r}: {exc}") from exc
 
     rc = result.returncode
     logger.debug(f"{name} -> rc={rc}\n  STDOUT: {result.stdout[:400]}\n  STDERR: {result.stderr[:400]}")
@@ -291,7 +297,7 @@ def _install_dism_feature(name: str, feature: str) -> InstallResult:
         return InstallResult(name, -1, False, message="dism_feature belirtilmemiş.")
 
     cmd = [
-        "dism.exe", "/online", "/enable-feature",
+        _system32_executable("dism.exe"), "/online", "/enable-feature",
         f"/featurename:{feature}", "/All", "/NoRestart"
     ]
     logger.info(f"DISM: '{feature}' özelliği etkinleştiriliyor...")
@@ -304,7 +310,7 @@ def _install_dism_feature(name: str, feature: str) -> InstallResult:
 
 
 def _build_msi_command(file_path: str, silent_args: List[str], log_path: str) -> List[str]:
-    cmd = ["msiexec", "/i", file_path] + silent_args
+    cmd = [_system32_executable("msiexec.exe"), "/i", file_path] + silent_args
     if "/norestart" not in cmd and "/forcerestart" not in cmd:
         cmd.append("/norestart")
     cmd.extend(["/L*v", log_path])
@@ -320,3 +326,8 @@ def _msi_log_path(installer_path: str) -> str:
     except OSError:
         pass
     return log_path
+
+
+def _system32_executable(filename: str) -> str:
+    system_root = os.environ.get("SystemRoot", r"C:\Windows")
+    return os.path.join(system_root, "System32", filename)

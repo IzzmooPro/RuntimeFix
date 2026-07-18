@@ -10,6 +10,8 @@ Cache logic:
 
 import logging
 import os
+import sys
+import tempfile
 import time
 from typing import Callable, Optional
 from urllib.parse import urlparse, unquote
@@ -36,12 +38,9 @@ USER_AGENT      = (
 # Cache directory:
 #   - PyInstaller exe olarak çalışırken → %TEMP%\RuntimeFix_downloads  (korumalı alana yazmayı önler)
 #   - Normal Python ile çalışırken      → proje kökü/downloads/
-import sys as _sys
-import tempfile as _tempfile
-
-if getattr(_sys, "frozen", False):
+if getattr(sys, "frozen", False):
     # PyInstaller ile paketlenmiş exe
-    CACHE_DIR = os.path.join(_tempfile.gettempdir(), "RuntimeFix_downloads")
+    CACHE_DIR = os.path.join(tempfile.gettempdir(), "RuntimeFix_downloads")
 else:
     # Kaynak koddan çalıştırma (geliştirme)
     _CORE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -55,10 +54,15 @@ def _ensure_cache_dir() -> str:
         return CACHE_DIR
     except PermissionError:
         # CACHE_DIR yazılamıyorsa (örn. Program Files kısıtlaması) %TEMP%'e geç
-        fallback = os.path.join(_tempfile.gettempdir(), "RuntimeFix_downloads")
+        fallback = os.path.join(tempfile.gettempdir(), "RuntimeFix_downloads")
         os.makedirs(fallback, exist_ok=True)
         logger.warning(f"Cache dir permission denied, using fallback: {fallback}")
         return fallback
+
+
+def get_cache_dir() -> str:
+    """Return the writable cache directory used by downloads."""
+    return _ensure_cache_dir()
 
 
 def _build_session() -> requests.Session:
@@ -85,7 +89,6 @@ class DownloadError(Exception):
 
 def download_file(
     url: str,
-    dest_dir: str,                          # kept for API compatibility; cache overrides
     *,
     progress_cb: Optional[Callable[[str, int, float], None]] = None,
     cancel_check: Optional[Callable[[], bool]] = None,
@@ -99,8 +102,10 @@ def download_file(
     url_validator: verilirse redirect zinciri sonundaki URL'ye uygulanır;
                    whitelist dışına çıkan yönlendirmelerde exception fırlatmalıdır.
     """
-    cache_dir = _ensure_cache_dir()
-    filename  = filename_hint or resolve_filename_from_url(url)
+    cache_dir = get_cache_dir()
+    filename = sanitize_filename(
+        filename_hint or resolve_filename_from_url(url)
+    )
     # Windows büyük/küçük harf: önce tam eşleşme, sonra case-insensitive tarama
     dest_path = os.path.join(cache_dir, filename)
 
@@ -114,62 +119,85 @@ def download_file(
         return _cached
 
     # ── Download ──────────────────────────────────────────────────────────
-    session = _build_session()
     try:
-        response = session.get(
-            url, stream=True,
+        with _build_session() as session, session.get(
+            url,
+            stream=True,
             timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
             allow_redirects=True,
-        )
-        response.raise_for_status()
+        ) as response:
+            response.raise_for_status()
+
+            # Validate both the original/final URL. This also catches unexpected
+            # redirects before any bytes are persisted.
+            if url_validator:
+                url_validator(response.url)
+
+            # Refine filename after redirect.
+            # filename_hint her zaman kazanır: VC++ 2005/2008/2010 gibi bileşenlerin
+            # sunucudaki dosya adları aynıdır (vcredist_x86.exe) — hint ezilirse
+            # dosyalar cache'te birbirinin üzerine yazılır.
+            if not filename_hint:
+                final_filename = resolve_filename_from_url(response.url) or filename
+                if final_filename != filename:
+                    dest_path = os.path.join(cache_dir, final_filename)
+                    filename = final_filename
+
+            try:
+                total_size = int(response.headers.get("content-length") or 0)
+            except (TypeError, ValueError) as exc:
+                raise DownloadError(
+                    f"Invalid Content-Length while downloading {filename!r}."
+                ) from exc
+            bytes_downloaded = 0
+            start_time = time.monotonic()
+
+            size_str = (
+                f"{total_size / 1_048_576:.1f} MB"
+                if total_size
+                else "unknown size"
+            )
+            logger.info(f"Downloading: {filename} ({size_str})")
+
+            # Önce .part geçici dosyasına indir — işlem yarıda kesilirse (elektrik,
+            # kill vb.) cache'te bozuk ama "geçerli görünen" dosya kalmaz.
+            part_path = dest_path + ".part"
+            try:
+                with open(part_path, "wb") as fh:
+                    for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
+                        if cancel_check and cancel_check():
+                            raise DownloadError("Download cancelled by user.")
+                        if not chunk:
+                            continue
+                        fh.write(chunk)
+                        bytes_downloaded += len(chunk)
+                        if progress_cb:
+                            elapsed = time.monotonic() - start_time
+                            speed = (
+                                bytes_downloaded / (1_048_576 * elapsed)
+                                if elapsed > 0
+                                else 0.0
+                            )
+                            pct = (
+                                int((bytes_downloaded / total_size) * 100)
+                                if total_size > 0
+                                else 0
+                            )
+                            progress_cb(filename, min(pct, 100), speed)
+                if total_size and bytes_downloaded != total_size:
+                    raise DownloadError(
+                        f"Incomplete download for {filename!r}: "
+                        f"{bytes_downloaded}/{total_size} bytes."
+                    )
+                os.replace(part_path, dest_path)
+            except DownloadError:
+                _safe_remove(part_path)
+                raise
+            except Exception as exc:
+                _safe_remove(part_path)
+                raise DownloadError(f"Error saving {filename!r}: {exc}") from exc
     except requests.exceptions.RequestException as exc:
         raise DownloadError(f"Network error downloading {url!r}: {exc}") from exc
-
-    # Redirect zinciri whitelist dışına çıktıysa reddet
-    if url_validator and response.url != url:
-        url_validator(response.url)
-
-    # Refine filename after redirect.
-    # filename_hint her zaman kazanır: VC++ 2005/2008/2010 gibi bileşenlerin
-    # sunucudaki dosya adları aynıdır (vcredist_x86.exe) — hint ezilirse
-    # dosyalar cache'te birbirinin üzerine yazılır.
-    if not filename_hint:
-        final_filename = resolve_filename_from_url(response.url) or filename
-        if final_filename != filename:
-            dest_path = os.path.join(cache_dir, final_filename)
-            filename  = final_filename
-
-    total_size       = int(response.headers.get("content-length", 0))
-    bytes_downloaded = 0
-    start_time       = time.monotonic()
-
-    size_str = f"{total_size/1_048_576:.1f} MB" if total_size else "unknown size"
-    logger.info(f"Downloading: {filename} ({size_str})")
-
-    # Önce .part geçici dosyasına indir — işlem yarıda kesilirse (elektrik,
-    # kill vb.) cache'te bozuk ama "geçerli görünen" dosya kalmaz.
-    part_path = dest_path + ".part"
-    try:
-        with open(part_path, "wb") as fh:
-            for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
-                if cancel_check and cancel_check():
-                    raise DownloadError("Download cancelled by user.")
-                if not chunk:
-                    continue
-                fh.write(chunk)
-                bytes_downloaded += len(chunk)
-                if progress_cb:
-                    elapsed   = time.monotonic() - start_time
-                    speed     = (bytes_downloaded / (1_048_576 * elapsed)) if elapsed > 0 else 0.0
-                    pct       = int((bytes_downloaded / total_size) * 100) if total_size > 0 else 0
-                    progress_cb(filename, pct, speed)
-        os.replace(part_path, dest_path)
-    except DownloadError:
-        _safe_remove(part_path)
-        raise
-    except Exception as exc:
-        _safe_remove(part_path)
-        raise DownloadError(f"Error saving {filename!r}: {exc}") from exc
 
     if progress_cb:
         elapsed = time.monotonic() - start_time
@@ -198,10 +226,6 @@ def find_cached(cache_dir: str, filename: str) -> Optional[str]:
         pass
     return None
 
-# Geriye dönük uyumluluk için eski isim korunuyor
-_find_cached = find_cached
-
-
 def resolve_filename_from_url(url: str) -> str:
     parsed = urlparse(url)
     name   = os.path.basename(unquote(parsed.path))
@@ -209,13 +233,9 @@ def resolve_filename_from_url(url: str) -> str:
         return sanitize_filename(name)
     return "downloaded_file.bin"
 
-# Geriye dönük uyumluluk için eski isim korunuyor
-_resolve_filename_from_url = resolve_filename_from_url
-
-
 def _safe_remove(path: str) -> None:
     try:
         if os.path.exists(path):
             os.remove(path)
-    except OSError:
-        pass
+    except OSError as exc:
+        logger.debug(f"Could not remove temporary download {path!r}: {exc}")

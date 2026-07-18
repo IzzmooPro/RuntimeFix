@@ -10,7 +10,6 @@ import logging.handlers
 import ctypes
 import platform
 import subprocess
-from typing import Optional
 
 try:
     import winreg
@@ -40,9 +39,10 @@ def setup_logging(log_file: str = "") -> logging.Logger:
     #   exe → %TEMP%\RuntimeFix_logs\  (Program Files korumalı alan sorunu önlenir)
     #   Python → proje kökü/logs/
     if not log_file:
-        import sys as _sys, tempfile as _tf
-        if getattr(_sys, "frozen", False):
-            _logs_dir = os.path.join(_tf.gettempdir(), "RuntimeFix_logs")
+        import tempfile
+
+        if getattr(sys, "frozen", False):
+            _logs_dir = os.path.join(tempfile.gettempdir(), "RuntimeFix_logs")
         else:
             _core_dir = os.path.dirname(os.path.abspath(__file__))
             _root_dir = os.path.dirname(_core_dir)
@@ -108,7 +108,10 @@ def relaunch_as_admin() -> bool:
 
 def sanitize_filename(name: str) -> str:
     """Strip characters that are unsafe for file system paths."""
-    return "".join(c for c in name if c.isalnum() or c in (".", "_", "-")) or "download.tmp"
+    cleaned = "".join(
+        char for char in name if char.isalnum() or char in (".", "_", "-")
+    ).strip(" .")
+    return cleaned or "download.tmp"
 
 
 # --------------------------------------------------------------------------
@@ -181,31 +184,6 @@ def detect_registry_key(reg_path: str) -> bool:
         return False
 
 
-def detect_directx(min_version: str = "9") -> bool:
-    """
-    Detect DirectX installation by checking registry.
-    Registry key varlığı yeterli — versiyon okuma hatası olsa bile True döner.
-    """
-    dx_registry_keys = [
-        "HKLM\\SOFTWARE\\Microsoft\\DirectX",
-        "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\DirectX",
-    ]
-    for key in dx_registry_keys:
-        if detect_registry_key(key):
-            logger.debug(f"DirectX detected via registry: {key}")
-            return True
-
-    # File-based fallback
-    system32 = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32")
-    dx_files = ["d3d9.dll", "d3d11.dll", "d3d12.dll", "dxgi.dll"]
-    found = [f for f in dx_files if os.path.exists(os.path.join(system32, f))]
-    if len(found) >= 2:
-        logger.debug(f"DirectX detected via System32 DLLs: {found}")
-        return True
-
-    return False
-
-
 def detect_webview2() -> bool:
     """Detect Microsoft Edge WebView2 Runtime via registry."""
     keys = [
@@ -235,8 +213,6 @@ def detect_msxml4() -> bool:
     MSXML 4.0 SP3 tespiti — birden fazla yöntemi sırayla dener.
     Modern Windows 10/11'de registry anahtarı farklı yerlerde olabilir.
     """
-    import platform
-
     # 1) DLL dosyası kontrolü (en güvenilir yöntem)
     windir = os.environ.get("SystemRoot", "C:\\Windows")
     dll_paths = [
@@ -263,49 +239,48 @@ def detect_msxml4() -> bool:
     return False
 
 
-def detect_java() -> bool:
-    """Detect any installed Java Runtime via registry or PATH."""
-    # Registry
-    java_keys = [
-        "HKLM\\SOFTWARE\\JavaSoft\\Java Runtime Environment",
-        "HKLM\\SOFTWARE\\JavaSoft\\JRE",
-        "HKLM\\SOFTWARE\\WOW6432Node\\JavaSoft\\Java Runtime Environment",
-    ]
-    for key in java_keys:
-        if detect_registry_key(key):
-            logger.debug(f"Java detected via registry: {key}")
-            return True
-    # PATH fallback — pencere gizli çalışır
+def detect_java(arch: str = "") -> bool:
+    """Detect Java Runtime, optionally distinguishing x86 from x64."""
+    if arch not in {"", "x86", "x64"}:
+        logger.warning(f"Unknown Java architecture in config: {arch!r}")
+        return False
+
+    if _WINREG_AVAILABLE and winreg is not None:
+        views = {
+            "x86": (winreg.KEY_WOW64_32KEY,),
+            "x64": (winreg.KEY_WOW64_64KEY,),
+            "": (winreg.KEY_WOW64_64KEY, winreg.KEY_WOW64_32KEY),
+        }
+        keys = (
+            r"SOFTWARE\JavaSoft\Java Runtime Environment",
+            r"SOFTWARE\JavaSoft\JRE",
+        )
+        for key in keys:
+            for view in views[arch]:
+                try:
+                    with winreg.OpenKey(
+                        winreg.HKEY_LOCAL_MACHINE,
+                        key,
+                        0,
+                        winreg.KEY_READ | view,
+                    ):
+                        logger.debug(
+                            f"Java {arch or 'any'} detected via registry: {key}"
+                        )
+                        return True
+                except (FileNotFoundError, OSError):
+                    continue
+
+    # PATH does not reliably reveal x86/x64. Use it only for generic checks.
+    if arch:
+        return False
     try:
         result = _silent_subprocess(["java", "-version"], timeout=10)
         if result.returncode == 0 or "version" in result.stderr.lower():
             logger.debug("Java detected via PATH")
             return True
-    except Exception:
-        pass
-    return False
-
-
-def detect_vsbuildtools() -> bool:
-    """Detect Visual Studio Build Tools 2022 via registry."""
-    keys = [
-        "HKLM\\SOFTWARE\\Microsoft\\VisualStudio\\17.0",
-        "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\VisualStudio\\17.0",
-        # VS installer also writes here
-        "HKLM\\SOFTWARE\\Microsoft\\VisualStudio\\Setup",
-    ]
-    # Check for BuildTools-specific path too
-    build_tools_path = os.path.join(
-        os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)"),
-        "Microsoft Visual Studio", "2022", "BuildTools"
-    )
-    if os.path.exists(build_tools_path):
-        logger.debug(f"VS Build Tools detected at: {build_tools_path}")
-        return True
-    for key in keys:
-        if detect_registry_key(key):
-            logger.debug(f"VS Build Tools detected via registry: {key}")
-            return True
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.debug(f"Java PATH detection failed: {exc}")
     return False
 
 
@@ -317,10 +292,8 @@ def is_component_installed(component: dict) -> bool:
     Supported detect_type values:
       dotnet    → dotnet --list-sdks
       registry  → Windows registry key check
-      directx   → DirectX registry + DLL file check
       webview2  → WebView2 runtime registry check
       java      → Java registry + PATH check
-      vsbuild   → VS Build Tools path + registry check
       file      → detect_value is an absolute file path
       none      → always returns False (not installed)
     """
@@ -344,14 +317,10 @@ def is_component_installed(component: dict) -> bool:
         return detect_vcredist(year, arch)
     if detect_type == "registry":
         return detect_registry_key(detect_value)
-    if detect_type == "directx":
-        return detect_directx(detect_value or "9")
     if detect_type == "webview2":
         return detect_webview2()
     if detect_type == "java":
-        return detect_java()
-    if detect_type == "vsbuild":
-        return detect_vsbuildtools()
+        return detect_java(detect_value)
     if detect_type == "msxml4":
         return detect_msxml4()
     if detect_type == "file":
@@ -454,7 +423,7 @@ def detect_vcredist(year: str, arch: str) -> bool:
             "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
             "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
         ]
-        search = f"Visual C++ {normalized_year}"
+        search = f"visual c++ {normalized_year}"
         for root in uninstall_roots:
             for flag in (winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
                          winreg.KEY_READ | winreg.KEY_WOW64_32KEY):
@@ -472,7 +441,7 @@ def detect_vcredist(year: str, arch: str) -> bool:
                                         # x86 = "x64 geçmeyen", x64 = "x64 geçen" kabul edilir.
                                         dn_l = dn.lower()
                                         arch_match = ("x64" in dn_l) if arch == "x64" else ("x64" not in dn_l)
-                                        if search in dn and arch_match:
+                                        if search in dn_l and arch_match:
                                             logger.debug(f"VC++ {year} {arch} found via scan: {dn}")
                                             return True
                                     except FileNotFoundError:

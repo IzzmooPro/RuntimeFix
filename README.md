@@ -1,11 +1,11 @@
-# 🛠️ RuntimeFix v1.0
+# 🛠️ RuntimeFix v2.1
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?logo=windows)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Components](https://img.shields.io/badge/Components-46-orange)
 
-**RuntimeFix v1.0**, sisteminizde eksik olan runtime bileşenlerini otomatik olarak tespit edip tek tıkla kuran modern bir araçtır. Oyun oynamadan önce veya bir uygulama çalıştırırken karşılaşılan "Visual C++ bulunamadı", ".NET Runtime eksik" gibi hata mesajlarına son verir.
+**RuntimeFix v2.1**, sisteminizde eksik olan runtime bileşenlerini otomatik olarak tespit edip tek tıkla kuran modern bir araçtır. Oyun oynamadan önce veya bir uygulama çalıştırırken karşılaşılan "Visual C++ bulunamadı", ".NET Runtime eksik" gibi hata mesajlarına son verir.
 
 ---
 
@@ -21,6 +21,7 @@
 | 🔄 Restart Yönetimi | Yeniden başlatma gerektiren kurulumlar için uyarı |
 | 🌐 5 Dil | Türkçe, English, Deutsch, Français, Español |
 | 🛡️ Güvenli İndirme | Sadece HTTPS, sadece güvenilir Microsoft/Oracle kaynakları |
+| 🔄 Uygulama Güncellemesi | GitHub Releases üzerinden yeni setup sürümünü denetler, indirir ve kullanıcı onayıyla başlatır |
 
 ---
 
@@ -101,6 +102,11 @@
 
 ### Kurulum
 
+Hazır Windows kurulum dosyasını [GitHub Releases](https://github.com/IzzmooPro/RuntimeFix/releases/latest)
+sayfasından indirebilirsiniz.
+
+Kaynak koddan çalıştırmak için:
+
 ```bash
 # Bağımlılıkları yükle
 pip install -r requirements.txt
@@ -136,6 +142,8 @@ RuntimeFix/
 │   ├── installer.py             # Silent kurulum motoru
 │   ├── security.py              # SHA-256 + domain whitelist
 │   ├── utils.py                 # Sistem tespiti
+│   ├── app_info.py              # Uygulama sürümü ve GitHub adresleri
+│   ├── updater.py               # GitHub Releases güncelleme motoru
 │   └── languages.py             # 5 dil desteği
 ├── debug/                       # Geliştirici araçları
 │   ├── debug_registry.py        # Registry tanı aracı

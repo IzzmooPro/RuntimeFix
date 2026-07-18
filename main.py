@@ -19,10 +19,10 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from security import SecurityManager
 from ui import MainWindow
 from utils import is_admin, relaunch_as_admin, setup_logging
+from app_info import APP_VERSION
 
 logger = setup_logging()
 
-APP_VERSION  = "2.0"
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 LOCAL_CONFIG = os.path.join(BASE_DIR, "config.json")
 

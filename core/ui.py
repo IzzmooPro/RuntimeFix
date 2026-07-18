@@ -12,6 +12,7 @@ Eski arayüz yedeği: ui_legacy.py.bak
 import logging
 import os
 import subprocess
+import tempfile
 from typing import List, Optional
 
 try:
@@ -33,13 +34,10 @@ from worker import DownloadInstallWorker, WorkerSignals
 from security import SecurityManager
 from utils import is_component_installed
 from languages import LANGUAGES, LANG_ORDER, get as T
+from app_info import APP_VERSION, GITHUB_RELEASES_URL
+from updater import check_latest_release, download_update
 
 logger = logging.getLogger("RuntimeFix.ui")
-
-# ── GitHub / güncelleme sabitleri ───────────────────────────────────────────
-GITHUB_REPO  = "IzzmooPro/RuntimeFix"
-VERSION_URL  = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/version.txt"
-RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
 
 # ── Palet — monokrom zemin + tek turkuaz vurgu ──────────────────────────────
 C_BG       = "#17181c"   # pencere zemini (yumuşak antrasit)
@@ -588,7 +586,7 @@ class LogViewerDialog(QDialog):
 
 # ── Hakkında ────────────────────────────────────────────────────────────────
 class AboutDialog(QDialog):
-    def __init__(self, version: str, lang: str, parent=None):
+    def __init__(self, version: str, lang: str, on_check_updates=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle(T(lang, "about_btn"))
         self.setFixedWidth(360)
@@ -618,6 +616,16 @@ class AboutDialog(QDialog):
         lay.addWidget(dev)
 
         lay.addSpacing(8)
+        check_updates = QPushButton(T(lang, "update_check"))
+        check_updates.setObjectName("linkBtn")
+        check_updates.setCursor(Qt.CursorShape.PointingHandCursor)
+        if on_check_updates:
+            check_updates.clicked.connect(self.accept)
+            check_updates.clicked.connect(on_check_updates)
+        else:
+            check_updates.setEnabled(False)
+        lay.addWidget(check_updates, alignment=Qt.AlignmentFlag.AlignCenter)
+
         ok = QPushButton("Tamam" if lang == "tr" else "OK")
         ok.setObjectName("primaryBtn")
         ok.clicked.connect(self.accept)
@@ -657,44 +665,45 @@ class RepairInfoDialog(QDialog):
 
 # ── Güncelleme denetimi ─────────────────────────────────────────────────────
 class UpdateSignals(QObject):
-    result = pyqtSignal(str)   # yeni sürüm no; "" = güncel ya da erişilemedi
+    result = pyqtSignal(object)
+    error = pyqtSignal(str)
 
 
 class UpdateChecker(QObject):
-    """GitHub'daki version.txt'yi okur, daha yeni sürüm varsa bildirir.
-
-    Güvenlik notu: yalnızca sürüm NUMARASI okunur ve karşılaştırılır;
-    hiçbir şey otomatik indirilmez/çalıştırılmaz. "Güncelle" butonu
-    kullanıcıyı GitHub sürüm sayfasına (tarayıcıya) götürür.
-    """
+    """GitHub Releases API üzerinden son setup yayınını denetler."""
 
     def __init__(self, current: str):
         super().__init__()
         self.current = current
         self.signals = UpdateSignals()
 
-    @staticmethod
-    def _ver(s: str):
+    def run(self):
         try:
-            return tuple(int(x) for x in s.strip().split("."))
-        except ValueError:
-            return (0,)
+            info = check_latest_release(self.current)
+            self.signals.result.emit(info)
+        except Exception as exc:
+            self.signals.error.emit(str(exc))
+
+
+class UpdateDownloadSignals(QObject):
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+
+class UpdateDownloader(QObject):
+    def __init__(self, info: dict, destination_dir: str):
+        super().__init__()
+        self.info = info
+        self.destination_dir = destination_dir
+        self.signals = UpdateDownloadSignals()
 
     def run(self):
         try:
-            import requests
-            resp = requests.get(VERSION_URL, timeout=8,
-                                headers={"User-Agent": "RuntimeFix-UpdateCheck"})
-            resp.raise_for_status()
-            remote = resp.text.strip().splitlines()[0].strip()
-            if self._ver(remote) > self._ver(self.current):
-                logger.info(f"[GÜNCELLEME] Yeni sürüm bulundu: v{remote} (yerel v{self.current})")
-                self.signals.result.emit(remote)
-                return
-            logger.info(f"[GÜNCELLEME] Sürüm güncel (v{self.current})")
+            self.signals.finished.emit(
+                download_update(self.info, self.destination_dir)
+            )
         except Exception as exc:
-            logger.debug(f"[GÜNCELLEME] Denetim atlandı: {exc}")
-        self.signals.result.emit("")
+            self.signals.error.emit(str(exc))
 
 
 # ── Tarama işçisi ───────────────────────────────────────────────────────────
@@ -721,7 +730,7 @@ class ScanWorker(QObject):
 # ── Ana pencere ─────────────────────────────────────────────────────────────
 class MainWindow(QWidget):
     def __init__(self, components: List[dict], security: SecurityManager,
-                 version: str = "2.0"):
+                 version: str = APP_VERSION):
         super().__init__()
         self._version    = version
         self._components = sorted(components, key=lambda c: c.get("name", ""))
@@ -735,7 +744,11 @@ class MainWindow(QWidget):
         self._scan_worker: Optional[ScanWorker] = None
         self._upd_thread:  Optional[QThread] = None
         self._upd_worker:  Optional[UpdateChecker] = None
+        self._upd_download_thread: Optional[QThread] = None
+        self._upd_downloader: Optional[UpdateDownloader] = None
+        self._update_info: dict = {}
         self._update_ver   = ""
+        self._notify_update_result = False
         self._failed:          List[str] = []
         self._installed_names: List[str] = []
         self._ok_count   = 0
@@ -836,7 +849,7 @@ class MainWindow(QWidget):
         self._update_btn.setObjectName("linkBtn")
         self._update_btn.setStyleSheet(f"color:{C_ACCENT};font-weight:600;")
         self._update_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._update_btn.clicked.connect(self._open_releases)
+        self._update_btn.clicked.connect(self._begin_update)
         ub.addWidget(self._update_btn)
         dismiss = QPushButton("✕")
         dismiss.setObjectName("flatBtn")
@@ -1090,22 +1103,55 @@ class MainWindow(QWidget):
         self._repair_btn.setToolTip(T(lang, "repair_tip"))
 
     # ── güncelleme denetimi ─────────────────────────────────────────────────
-    def _check_updates(self):
+    def _check_updates(self, notify_when_current: bool = False):
+        if self._upd_thread and self._upd_thread.isRunning():
+            return
+        self._notify_update_result = notify_when_current
         self._upd_thread = QThread()
         self._upd_worker = UpdateChecker(self._version)
         self._upd_worker.moveToThread(self._upd_thread)
         self._upd_worker.signals.result.connect(
             self._on_update_result, Qt.ConnectionType.QueuedConnection)
+        self._upd_worker.signals.error.connect(
+            self._on_update_error, Qt.ConnectionType.QueuedConnection)
         self._upd_worker.signals.result.connect(self._upd_thread.quit)
+        self._upd_worker.signals.error.connect(self._upd_thread.quit)
         self._upd_thread.started.connect(self._upd_worker.run)
         self._upd_thread.start()
 
-    def _on_update_result(self, remote_ver: str):
+    def _on_update_result(self, info: dict):
         QTimer.singleShot(0, self._cleanup_update_thread)
-        self._update_ver = remote_ver
-        if remote_ver:
+        self._update_info = info or {}
+        self._update_ver = str(self._update_info.get("version") or "")
+        if self._update_info.get("available"):
+            logger.info(
+                f"[GÜNCELLEME] Yeni sürüm bulundu: "
+                f"v{self._update_ver} (yerel v{self._version})"
+            )
             self._refresh_update_bar()
             self._update_bar.setVisible(True)
+            if self._notify_update_result:
+                self._begin_update()
+        elif self._notify_update_result:
+            QMessageBox.information(
+                self,
+                T(self._lang, "update_title"),
+                T(self._lang, "update_current", v=self._version),
+            )
+        else:
+            logger.info(f"[GÜNCELLEME] Sürüm güncel (v{self._version})")
+        self._notify_update_result = False
+
+    def _on_update_error(self, message: str):
+        QTimer.singleShot(0, self._cleanup_update_thread)
+        logger.warning(f"[GÜNCELLEME] Denetim tamamlanamadı: {message}")
+        if self._notify_update_result:
+            QMessageBox.warning(
+                self,
+                T(self._lang, "update_title"),
+                f"{T(self._lang, 'update_failed')}\n\n{message}",
+            )
+        self._notify_update_result = False
 
     def _refresh_update_bar(self):
         if self._update_ver:
@@ -1113,16 +1159,106 @@ class MainWindow(QWidget):
                 T(self._lang, "update_avail", v=self._update_ver))
             self._update_btn.setText(T(self._lang, "update_btn") + " →")
 
+    def _begin_update(self):
+        info = self._update_info
+        if not info:
+            self._check_updates(True)
+            return
+
+        version = str(info.get("version") or "?")
+        if not info.get("download_url"):
+            answer = QMessageBox.question(
+                self,
+                T(self._lang, "update_title"),
+                T(self._lang, "update_no_asset", v=version),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                self._open_releases()
+            return
+
+        answer = QMessageBox.question(
+            self,
+            T(self._lang, "update_title"),
+            T(
+                self._lang,
+                "update_confirm",
+                v=version,
+                current=self._version,
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        self._update_btn.setEnabled(False)
+        self._update_lbl.setText(T(self._lang, "update_downloading"))
+        destination = os.path.join(
+            os.environ.get("LOCALAPPDATA", tempfile.gettempdir()),
+            "RuntimeFix",
+            "updates",
+        )
+        self._upd_download_thread = QThread()
+        self._upd_downloader = UpdateDownloader(info, destination)
+        self._upd_downloader.moveToThread(self._upd_download_thread)
+        self._upd_downloader.signals.finished.connect(
+            self._on_update_downloaded, Qt.ConnectionType.QueuedConnection)
+        self._upd_downloader.signals.error.connect(
+            self._on_update_download_error, Qt.ConnectionType.QueuedConnection)
+        self._upd_downloader.signals.finished.connect(
+            self._upd_download_thread.quit)
+        self._upd_downloader.signals.error.connect(
+            self._upd_download_thread.quit)
+        self._upd_download_thread.started.connect(self._upd_downloader.run)
+        self._upd_download_thread.start()
+
+    def _on_update_downloaded(self, path: str):
+        QTimer.singleShot(0, self._cleanup_update_download_thread)
+        self._update_btn.setEnabled(True)
+        self._refresh_update_bar()
+        answer = QMessageBox.question(
+            self,
+            T(self._lang, "update_title"),
+            T(self._lang, "update_downloaded"),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            try:
+                subprocess.Popen([path])
+                QTimer.singleShot(500, QApplication.instance().quit)
+            except OSError as exc:
+                self._on_update_download_error(str(exc))
+
+    def _on_update_download_error(self, message: str):
+        QTimer.singleShot(0, self._cleanup_update_download_thread)
+        self._update_btn.setEnabled(True)
+        self._refresh_update_bar()
+        logger.warning(f"[GÜNCELLEME] İndirme tamamlanamadı: {message}")
+        QMessageBox.warning(
+            self,
+            T(self._lang, "update_title"),
+            f"{T(self._lang, 'update_failed')}\n\n{message}",
+        )
+
     def _open_releases(self):
         import webbrowser
-        logger.info(f"[GÜNCELLEME] Sürüm sayfası açılıyor: {RELEASES_URL}")
-        webbrowser.open(RELEASES_URL)
+        logger.info(f"[GÜNCELLEME] Sürüm sayfası açılıyor: {GITHUB_RELEASES_URL}")
+        webbrowser.open(GITHUB_RELEASES_URL)
 
     def _cleanup_update_thread(self):
         if self._upd_thread:
             self._upd_thread.wait(3000)
         self._upd_thread = None
         self._upd_worker = None
+
+    def _cleanup_update_download_thread(self):
+        if self._upd_download_thread:
+            self._upd_download_thread.wait(3000)
+        self._upd_download_thread = None
+        self._upd_downloader = None
 
     # ── tarama ──────────────────────────────────────────────────────────────
     def _on_main_btn(self):
@@ -1366,7 +1502,12 @@ class MainWindow(QWidget):
         LogViewerDialog(self._log_path, self._lang, self).exec()
 
     def _open_about(self):
-        AboutDialog(self._version, self._lang, self).exec()
+        AboutDialog(
+            self._version,
+            self._lang,
+            on_check_updates=lambda: self._check_updates(True),
+            parent=self,
+        ).exec()
 
     def closeEvent(self, event):
         if self._thread and self._thread.isRunning():

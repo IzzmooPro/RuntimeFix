@@ -6,6 +6,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?logo=windows)
+![CI](https://github.com/IzzmooPro/RuntimeFix/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Components](https://img.shields.io/badge/Components-46-orange)
 
@@ -20,11 +21,11 @@
 | 🔍 Akıllı Tarama | Açılışta sistemi otomatik tarar, eksik bileşenleri işaretler |
 | ⚡ Tek Tık Kurulum | Seçili bileşenlerin tamamını sırayla sessizce kurar |
 | 🔒 SHA-256 Doğrulama | Her dosya kurulmadan önce güvenlik kontrolünden geçer |
-| 📦 Offline Cache | İndirilen dosyalar `downloads/` klasöründe saklanır, tekrar indirilmez |
+| 📦 Offline Cache | Kaynak çalıştırmada `downloads/`, kurulu EXE'de `%TEMP%\RuntimeFix_downloads` kullanılır |
 | 💬 Anlaşılır Hata Mesajları | Teknik kodlar yerine kullanıcı dostu açıklamalar |
 | 🔄 Restart Yönetimi | Yeniden başlatma gerektiren kurulumlar için uyarı |
 | 🌐 5 Dil | Türkçe, English, Deutsch, Français, Español |
-| 🛡️ Güvenli İndirme | Sadece HTTPS, sadece güvenilir Microsoft/Oracle kaynakları |
+| 🛡️ Güvenli İndirme | Sadece HTTPS ve whitelist'teki resmî sağlayıcı alan adları kullanılır |
 | 🔄 Uygulama Güncellemesi | GitHub Releases üzerinden yeni setup sürümünü denetler, indirir ve kullanıcı onayıyla başlatır |
 
 ---
@@ -201,7 +202,15 @@ python debug\detection_audit.py
 PyQt6>=6.6.0
 requests>=2.31.0
 urllib3>=2.0.0
-pywin32>=306
+```
+
+---
+
+## ✅ Testler
+
+```bash
+python -m compileall -q main.py core debug
+python -m unittest discover -s tests -v
 ```
 
 ---
@@ -214,4 +223,4 @@ pywin32>=306
 
 ## 📄 Lisans
 
-Bu proje MIT lisansı altında dağıtılmaktadır.
+Bu proje [MIT Lisansı](LICENSE) altında dağıtılmaktadır.

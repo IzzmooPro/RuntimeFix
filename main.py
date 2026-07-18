@@ -105,13 +105,21 @@ if __name__ == "__main__":
     try:
         main()
     except Exception:
-        # Herhangi bir hata olursa konsola yaz, kapanmasın
         tb = traceback.format_exc()
         logger.critical(f"Unhandled exception:\n{tb}")
-        print("\n" + "="*60)
-        print("BEKLENMEYEN HATA:")
-        print("="*60)
-        print(tb)
-        print("="*60)
-        input("\nDevam etmek icin Enter'a basin...")
+        summary = tb.strip().splitlines()[-1] if tb.strip() else "Bilinmeyen hata"
+        try:
+            error_app = QApplication.instance() or QApplication([])
+            QMessageBox.critical(
+                None,
+                "RuntimeFix — Beklenmeyen Hata",
+                "Program beklenmeyen bir hatayla kapandı.\n\n"
+                f"{summary}\n\n"
+                "Teknik ayrıntılar RuntimeFix log dosyasına kaydedildi.",
+            )
+        except Exception:
+            try:
+                print(f"RuntimeFix beklenmeyen hata:\n{tb}", file=sys.stderr)
+            except Exception:
+                pass
         sys.exit(1)

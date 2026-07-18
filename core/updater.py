@@ -94,16 +94,20 @@ def check_latest_release(current_version: str) -> dict:
 
 def _digest_matches(path: str, digest: Optional[str]) -> bool:
     if not digest or ":" not in digest:
-        return True
+        return False
     algorithm, _, expected = digest.partition(":")
-    if algorithm.strip().lower() != "sha256" or not expected.strip():
-        return True
+    expected = expected.strip().lower()
+    if (
+        algorithm.strip().lower() != "sha256"
+        or not re.fullmatch(r"[0-9a-f]{64}", expected)
+    ):
+        return False
 
     hasher = hashlib.sha256()
     with open(path, "rb") as file:
         for chunk in iter(lambda: file.read(1024 * 256), b""):
             hasher.update(chunk)
-    return hasher.hexdigest() == expected.strip().lower()
+    return hasher.hexdigest() == expected
 
 
 def _safe_filename(name: str) -> str:
@@ -136,7 +140,10 @@ def download_update(info: dict, destination_dir: str, timeout: int = 30) -> str:
                 file.write(chunk)
 
         if not _digest_matches(temporary_path, info.get("digest")):
-            raise UpdateError("İndirilen dosya doğrulanamadı (SHA-256 uyuşmadı).")
+            raise UpdateError(
+                "İndirilen dosya doğrulanamadı "
+                "(geçerli GitHub SHA-256 digest'i yok veya hash uyuşmadı)."
+            )
 
         os.replace(temporary_path, final_path)
         return final_path

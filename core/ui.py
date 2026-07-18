@@ -312,7 +312,91 @@ QToolTip {{
     border: 1px solid {C_BORDER2};
     padding: 5px 8px;
 }}
+
+QDialog, QMessageBox {{
+    background-color: {C_BG};
+    color: {C_TEXT};
+}}
+QDialog QPushButton, QMessageBox QPushButton {{
+    background-color: {C_SURFACE};
+    color: {C_TEXT};
+    border: 1px solid {C_BORDER2};
+    border-radius: 7px;
+    min-width: 76px;
+    padding: 7px 14px;
+}}
+QDialog QPushButton:hover, QMessageBox QPushButton:hover {{
+    background-color: {C_BORDER2};
+    border-color: {C_DIM};
+}}
+QDialog QPushButton:pressed, QMessageBox QPushButton:pressed {{
+    background-color: {C_BORDER};
+}}
+QDialog QPushButton:default, QMessageBox QPushButton:default {{
+    background-color: {C_PRIM_BG};
+    color: {C_PRIM_FG};
+    border-color: {C_PRIM_BG};
+    font-weight: 600;
+}}
+QMessageBox QLabel {{
+    background: transparent;
+    color: {C_TEXT};
+}}
 """
+
+
+def configure_application(app: QApplication) -> None:
+    """Tüm RuntimeFix pencerelerine aynı koyu görünümü uygular."""
+    app.setStyle("Fusion")
+    try:
+        app.styleHints().setColorScheme(Qt.ColorScheme.Dark)
+    except (AttributeError, TypeError):
+        pass
+    app.setStyleSheet(STYLE)
+    app.setWindowIcon(make_app_icon(32))
+
+
+def create_question_dialog(
+    parent,
+    title: str,
+    text: str,
+    lang: str,
+    *,
+    default_yes: bool = True,
+) -> tuple[QMessageBox, QPushButton]:
+    """Ana pencereyle uyumlu ve yerelleştirilmiş bir onay penceresi oluşturur."""
+    dialog = QMessageBox(parent)
+    dialog.setWindowTitle(title)
+    dialog.setText(text)
+    dialog.setIcon(QMessageBox.Icon.Question)
+    yes_button = dialog.addButton(
+        T(lang, "yes"), QMessageBox.ButtonRole.YesRole
+    )
+    no_button = dialog.addButton(
+        T(lang, "no"), QMessageBox.ButtonRole.NoRole
+    )
+    dialog.setDefaultButton(yes_button if default_yes else no_button)
+    dialog.setEscapeButton(no_button)
+    return dialog, yes_button
+
+
+def ask_question(
+    parent,
+    title: str,
+    text: str,
+    lang: str,
+    *,
+    default_yes: bool = True,
+) -> bool:
+    dialog, yes_button = create_question_dialog(
+        parent,
+        title,
+        text,
+        lang,
+        default_yes=default_yes,
+    )
+    dialog.exec()
+    return dialog.clickedButton() == yes_button
 
 
 # ── Sağlık halkası ──────────────────────────────────────────────────────────
@@ -759,7 +843,7 @@ class MainWindow(QWidget):
         self._upd_downloader: Optional[UpdateDownloader] = None
         self._update_info: dict = {}
         self._update_ver   = ""
-        self._notify_update_result = False
+        self._update_check_mode = "silent"
         self._failed:          List[str] = []
         self._installed_names: List[str] = []
         self._ok_count   = 0
@@ -788,8 +872,9 @@ class MainWindow(QWidget):
         self._apply_lang()
         # Açılışta otomatik tarama — kullanıcı ilk bakışta durumu görür
         QTimer.singleShot(400, self._do_scan)
-        # Güncelleme denetimi arka planda, taramayı bekletmez
-        QTimer.singleShot(2000, self._check_updates)
+        # Pencereyi bekletmeden güncellemeyi arka planda denetle. Yalnızca yeni
+        # sürüm varsa tek onay gösterilir; güncel/offline durum sessiz kalır.
+        QTimer.singleShot(250, lambda: self._check_updates("startup"))
 
     # ── kurulum ──────────────────────────────────────────────────────────────
     def _build_ui(self):
@@ -1114,10 +1199,14 @@ class MainWindow(QWidget):
         self._repair_btn.setToolTip(T(lang, "repair_tip"))
 
     # ── güncelleme denetimi ─────────────────────────────────────────────────
-    def _check_updates(self, notify_when_current: bool = False):
+    def _check_updates(self, mode: str = "silent"):
+        if mode not in {"silent", "startup", "manual"}:
+            raise ValueError(f"Geçersiz güncelleme denetim modu: {mode}")
         if self._upd_thread and self._upd_thread.isRunning():
+            if mode == "manual":
+                self._update_check_mode = "manual"
             return
-        self._notify_update_result = notify_when_current
+        self._update_check_mode = mode
         self._upd_thread = QThread()
         self._upd_worker = UpdateChecker(self._version)
         self._upd_worker.moveToThread(self._upd_thread)
@@ -1132,6 +1221,8 @@ class MainWindow(QWidget):
 
     def _on_update_result(self, info: dict):
         QTimer.singleShot(0, self._cleanup_update_thread)
+        mode = self._update_check_mode
+        self._update_check_mode = "silent"
         self._update_info = info or {}
         self._update_ver = str(self._update_info.get("version") or "")
         if self._update_info.get("available"):
@@ -1141,9 +1232,9 @@ class MainWindow(QWidget):
             )
             self._refresh_update_bar()
             self._update_bar.setVisible(True)
-            if self._notify_update_result:
+            if mode in {"startup", "manual"}:
                 self._begin_update()
-        elif self._notify_update_result:
+        elif mode == "manual":
             QMessageBox.information(
                 self,
                 T(self._lang, "update_title"),
@@ -1151,18 +1242,18 @@ class MainWindow(QWidget):
             )
         else:
             logger.info(f"[GÜNCELLEME] Sürüm güncel (v{self._version})")
-        self._notify_update_result = False
 
     def _on_update_error(self, message: str):
         QTimer.singleShot(0, self._cleanup_update_thread)
+        mode = self._update_check_mode
+        self._update_check_mode = "silent"
         logger.warning(f"[GÜNCELLEME] Denetim tamamlanamadı: {message}")
-        if self._notify_update_result:
+        if mode == "manual":
             QMessageBox.warning(
                 self,
                 T(self._lang, "update_title"),
                 f"{T(self._lang, 'update_failed')}\n\n{message}",
             )
-        self._notify_update_result = False
 
     def _refresh_update_bar(self):
         if self._update_ver:
@@ -1173,23 +1264,21 @@ class MainWindow(QWidget):
     def _begin_update(self):
         info = self._update_info
         if not info:
-            self._check_updates(True)
+            self._check_updates("manual")
             return
 
         version = str(info.get("version") or "?")
         if not info.get("download_url"):
-            answer = QMessageBox.question(
+            if ask_question(
                 self,
                 T(self._lang, "update_title"),
                 T(self._lang, "update_no_asset", v=version),
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.Yes,
-            )
-            if answer == QMessageBox.StandardButton.Yes:
+                self._lang,
+            ):
                 self._open_releases()
             return
 
-        answer = QMessageBox.question(
+        if not ask_question(
             self,
             T(self._lang, "update_title"),
             T(
@@ -1198,10 +1287,8 @@ class MainWindow(QWidget):
                 v=version,
                 current=self._version,
             ),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes,
-        )
-        if answer != QMessageBox.StandardButton.Yes:
+            self._lang,
+        ):
             return
 
         self._update_btn.setEnabled(False)
@@ -1228,20 +1315,12 @@ class MainWindow(QWidget):
     def _on_update_downloaded(self, path: str):
         QTimer.singleShot(0, self._cleanup_update_download_thread)
         self._update_btn.setEnabled(True)
-        self._refresh_update_bar()
-        answer = QMessageBox.question(
-            self,
-            T(self._lang, "update_title"),
-            T(self._lang, "update_downloaded"),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes,
-        )
-        if answer == QMessageBox.StandardButton.Yes:
-            try:
-                subprocess.Popen([path])
-                QTimer.singleShot(500, QApplication.instance().quit)
-            except OSError as exc:
-                self._on_update_download_error(str(exc))
+        self._update_lbl.setText(T(self._lang, "update_starting"))
+        try:
+            subprocess.Popen([path], cwd=os.path.dirname(path))
+            QTimer.singleShot(500, QApplication.instance().quit)
+        except OSError as exc:
+            self._on_update_download_error(str(exc))
 
     def _on_update_download_error(self, message: str):
         QTimer.singleShot(0, self._cleanup_update_download_thread)
@@ -1516,17 +1595,16 @@ class MainWindow(QWidget):
         AboutDialog(
             self._version,
             self._lang,
-            on_check_updates=lambda: self._check_updates(True),
+            on_check_updates=lambda: self._check_updates("manual"),
             parent=self,
         ).exec()
 
     def closeEvent(self, event):
         if self._thread and self._thread.isRunning():
-            reply = QMessageBox.question(
+            should_close = ask_question(
                 self, T(self._lang, "close_title"), T(self._lang, "close_msg"),
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No)
-            if reply == QMessageBox.StandardButton.Yes:
+                self._lang, default_yes=False)
+            if should_close:
                 if self._worker:
                     self._worker.cancel()
                 event.accept()

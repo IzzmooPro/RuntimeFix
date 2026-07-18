@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(_ROOT_DIR, "core"))
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from security import SecurityManager
-from ui import MainWindow
+from ui import MainWindow, configure_application
 from utils import is_admin, relaunch_as_admin, setup_logging
 from app_info import APP_VERSION
 
@@ -45,7 +45,7 @@ def load_config() -> dict:
 
 def main() -> None:
     logger.info("=" * 60)
-    logger.info(f"  RuntimeFix v{APP_VERSION} — Geliştirici Modu")
+    logger.info(f"  RuntimeFix v{APP_VERSION}")
     logger.info(f"  Python: {platform.python_version()} | Platform: {platform.system()} {platform.release()}")
     logger.info("=" * 60)
     logger.info("Program başlatılıyor...")
@@ -53,6 +53,7 @@ def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("RuntimeFix")
     app.setApplicationVersion(APP_VERSION)
+    configure_application(app)
 
     # Admin check
     if platform.system() == "Windows":
@@ -110,6 +111,7 @@ if __name__ == "__main__":
         summary = tb.strip().splitlines()[-1] if tb.strip() else "Bilinmeyen hata"
         try:
             error_app = QApplication.instance() or QApplication([])
+            configure_application(error_app)
             QMessageBox.critical(
                 None,
                 "RuntimeFix — Beklenmeyen Hata",

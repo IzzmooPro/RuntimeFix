@@ -13,7 +13,7 @@ from updater import _digest_matches, _safe_filename, is_newer_version
 
 class UpdaterTests(unittest.TestCase):
     def test_version_comparison(self):
-        self.assertTrue(is_newer_version("2.4", "2.3"))
+        self.assertTrue(is_newer_version("2.5", "2.4"))
         self.assertTrue(is_newer_version("v2.3.1", "2.3"))
         self.assertFalse(is_newer_version("2.3", "2.3.0"))
         self.assertFalse(is_newer_version("2.2", "2.3"))
@@ -34,8 +34,8 @@ class UpdaterTests(unittest.TestCase):
 
     def test_asset_filename_is_sanitized(self):
         self.assertEqual(
-            _safe_filename('RuntimeFix:Setup/2.4?.exe'),
-            "RuntimeFix_Setup_2.4_.exe",
+            _safe_filename('RuntimeFix:Setup/2.5?.exe'),
+            "RuntimeFix_Setup_2.5_.exe",
         )
 
 

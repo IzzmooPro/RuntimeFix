@@ -26,7 +26,7 @@ jobs:
         run: python -m pip install --disable-pip-version-check -r requirements.txt
 
       - name: Python sözdizimini denetle
-        run: python -m compileall -q main.py core debug tests
+        run: python -m compileall -q main.py core tests
 
       - name: Otomatik testleri çalıştır
         run: python -m unittest discover -s tests -v

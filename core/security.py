@@ -91,14 +91,13 @@ class SecurityManager:
 
         Raises :class:`SecurityError` on mismatch, and also when
         *expected_hash* is empty/None — indirilen hiçbir dosya bütünlük
-        denetimi olmadan kuruluma geçemez (config'e hash eklemek zorunlu;
-        debug/hash_updater.py otomatik hesaplar).
+        denetimi olmadan kuruluma geçemez; config'e hash eklemek zorunludur.
         """
         if not expected_hash:
             raise SecurityError(
                 f"No SHA-256 configured for {Path(file_path).name}. "
                 f"Integrity cannot be verified — add the sha256 value to "
-                f"data/config.json (debug/hash_updater.py can compute it)."
+                f"data/config.json."
             )
 
         computed = self._compute_sha256(file_path)

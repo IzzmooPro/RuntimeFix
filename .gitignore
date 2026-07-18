@@ -11,6 +11,9 @@ logs/
 *.bak
 Örnek/
 
+# Yalnızca yerel geliştirici araçları
+debug/
+
 # İşletim sistemi artıkları
 Thumbs.db
 desktop.ini

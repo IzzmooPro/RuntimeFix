@@ -140,10 +140,6 @@ RuntimeFix/
 │   ├── app_info.py              # Uygulama sürümü ve GitHub adresleri
 │   ├── updater.py               # GitHub Releases güncelleme motoru
 │   └── languages.py             # 5 dil desteği
-├── debug/                       # Geliştirici araçları
-│   ├── debug_registry.py        # Registry tanı aracı
-│   ├── detection_audit.py       # Tespit sonuçlarını denetler
-│   └── hash_updater.py          # SHA-256 otomatik güncelleyici
 ├── data/
 │   └── config.json              # Bileşen veritabanı
 ├── assets/                      # Uygulama logosu ve Windows ikonu
@@ -174,28 +170,6 @@ Her bileşen arka planda, kullanıcıya kurulum ekranı göstermeden yüklenir. 
 
 ---
 
-## 🛠️ Geliştirici Araçları
-
-### Hash Güncelleyici
-`data/config.json` dosyasındaki tüm bileşenlerin SHA-256 hash'lerini otomatik hesaplar:
-```bash
-python debug\hash_updater.py
-```
-
-### Registry Tanı Aracı
-Sistemde hangi runtime'ların hangi GUID'lerle kayıtlı olduğunu gösterir:
-```bash
-python debug\debug_registry.py
-```
-
-### Tespit Denetimi
-Yapılandırmadaki tüm bileşenlerin tespit sonucunu raporlar:
-```bash
-python debug\detection_audit.py
-```
-
----
-
 ## 📋 Bağımlılıklar
 
 ```
@@ -209,7 +183,7 @@ urllib3>=2.0.0
 ## ✅ Testler
 
 ```bash
-python -m compileall -q main.py core debug
+python -m compileall -q main.py core tests
 python -m unittest discover -s tests -v
 ```
 

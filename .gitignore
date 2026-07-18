@@ -1,0 +1,16 @@
+# Çalışma zamanı çıktıları — depoya girmez
+__pycache__/
+*.pyc
+*.pyo
+
+# Offline cache (GB'larca installer) ve loglar
+downloads/
+logs/
+
+# Yedekler ve yerel örnek/karşılaştırma dosyaları
+*.bak
+Örnek/
+
+# İşletim sistemi artıkları
+Thumbs.db
+desktop.ini

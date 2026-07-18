@@ -1,0 +1,595 @@
+{
+  "version": "2.0",
+  "allowed_domains": [
+    "builds.dotnet.microsoft.com",
+    "download.microsoft.com",
+    "aka.ms",
+    "javadl.oracle.com",
+    "sdlc-esd.oracle.com",
+    "download.oracle.com",
+    "us.download.nvidia.com",
+    "www.openal.org",
+    "dl.openal.org",
+    "go.microsoft.com",
+    "delivery.mp.microsoft.com",
+    "sdk.lunarg.com",
+    "download.visualstudio.microsoft.com"
+  ],
+  "components": [
+    {
+      "category": "Visual C++ Redistributables",
+      "name": "VC++ Redist 2005 (x86)",
+      "url": "https://download.microsoft.com/download/8/B/4/8B42259F-5D70-43F4-AC2E-4B208FD8D66A/vcredist_x86.EXE",
+      "sha256": "8648c5fc29c44b9112fe52f9a33f80e7fc42d10f3b5b42b2121542a13e44adfd",
+      "silent_args": [],
+      "detect_type": "vcredist",
+      "detect_value": "2005:x86",
+      "install_type": "vcredist2005",
+      "filename_hint": "vcredist_2005_x86.exe"
+    },
+    {
+      "category": "Visual C++ Redistributables",
+      "name": "VC++ Redist 2005 (x64)",
+      "url": "https://download.microsoft.com/download/8/B/4/8B42259F-5D70-43F4-AC2E-4B208FD8D66A/vcredist_x64.EXE",
+      "sha256": "4487570bd86e2e1aac29db2a1d0a91eb63361fcaac570808eb327cd4e0e2240d",
+      "silent_args": [],
+      "detect_type": "vcredist",
+      "detect_value": "2005:x64",
+      "install_type": "vcredist2005",
+      "filename_hint": "vcredist_2005_x64.exe"
+    },
+    {
+      "category": "Visual C++ Redistributables",
+      "name": "VC++ Redist 2008 (x86)",
+      "url": "https://download.microsoft.com/download/5/D/8/5D8C65CB-C849-4025-8E95-C3966CAFD8AE/vcredist_x86.exe",
+      "sha256": "8742bcbf24ef328a72d2a27b693cc7071e38d3bb4b9b44dec42aa3d2c8d61d92",
+      "silent_args": [
+        "/q:a",
+        "/r:n"
+      ],
+      "detect_type": "vcredist",
+      "detect_value": "2008:x86",
+      "install_type": "vcredist2008",
+      "filename_hint": "vcredist_2008_x86.exe"
+    },
+    {
+      "category": "Visual C++ Redistributables",
+      "name": "VC++ Redist 2008 (x64)",
+      "url": "https://download.microsoft.com/download/5/D/8/5D8C65CB-C849-4025-8E95-C3966CAFD8AE/vcredist_x64.exe",
+      "sha256": "c5e273a4a16ab4d5471e91c7477719a2f45ddadb76c7f98a38fa5074a6838654",
+      "silent_args": [
+        "/q:a",
+        "/r:n"
+      ],
+      "detect_type": "vcredist",
+      "detect_value": "2008:x64",
+      "install_type": "vcredist2008",
+      "filename_hint": "vcredist_2008_x64.exe"
+    },
+    {
+      "category": "Visual C++ Redistributables",
+      "name": "VC++ Redist 2010 (x86)",
+      "url": "https://download.microsoft.com/download/C/6/D/C6D0FD4E-9E53-4897-9B91-836EBA2AACD3/vcredist_x86.exe",
+      "sha256": "19c6d6e24901177d73528a28b0f13563ae5674b81f93cf466673ccc4c38ce828",
+      "silent_args": [
+        "/q:a",
+        "/r:n"
+      ],
+      "detect_type": "vcredist",
+      "detect_value": "2010:x86",
+      "install_type": "vcredist2010",
+      "filename_hint": "vcredist_2010_x86.exe"
+    },
+    {
+      "category": "Visual C++ Redistributables",
+      "name": "VC++ Redist 2010 (x64)",
+      "url": "https://download.microsoft.com/download/A/8/0/A80747C3-41BD-45DF-B505-E9710D2744E0/vcredist_x64.exe",
+      "sha256": "2fddbc3aaaab784c16bc673c3bae5f80929d5b372810dbc28649283566d33255",
+      "silent_args": [
+        "/q:a",
+        "/r:n"
+      ],
+      "detect_type": "vcredist",
+      "detect_value": "2010:x64",
+      "install_type": "vcredist2010",
+      "filename_hint": "vcredist_2010_x64.exe"
+    },
+    {
+      "category": "Visual C++ Redistributables",
+      "name": "VC++ Redist 2012 (x86)",
+      "url": "https://download.microsoft.com/download/1/6/b/16b06f60-3b20-4ff2-b699-5e9b7962f9ae/VSU_4/vcredist_x86.exe",
+      "sha256": "b924ad8062eaf4e70437c8be50fa612162795ff0839479546ce907ffa8d6e386",
+      "silent_args": [
+        "/install",
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "vcredist",
+      "detect_value": "2012:x86",
+      "filename_hint": "vcredist_2012_x86.exe"
+    },
+    {
+      "category": "Visual C++ Redistributables",
+      "name": "VC++ Redist 2012 (x64)",
+      "url": "https://download.microsoft.com/download/1/6/b/16b06f60-3b20-4ff2-b699-5e9b7962f9ae/VSU_4/vcredist_x64.exe",
+      "sha256": "681be3e5ba9fd3da02c09d7e565adfa078640ed66a0d58583efad2c1e3cc4064",
+      "silent_args": [
+        "/install",
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "vcredist",
+      "detect_value": "2012:x64",
+      "filename_hint": "vcredist_2012_x64.exe"
+    },
+    {
+      "category": "Visual C++ Redistributables",
+      "name": "VC++ Redist 2013 (x86)",
+      "url": "https://download.microsoft.com/download/c/4/6/c467522d-c094-4697-b9b2-bb59b2bcaca5/vcredist_x86.exe",
+      "sha256": "7a1712f90933d7e6ad79ab5ba91a4a452403a024aa4fab653a0b27f8856f84ee",
+      "silent_args": [
+        "/install",
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "vcredist",
+      "detect_value": "2013:x86",
+      "filename_hint": "vcredist_2013_x86.exe"
+    },
+    {
+      "category": "Visual C++ Redistributables",
+      "name": "VC++ Redist 2013 (x64)",
+      "url": "https://download.microsoft.com/download/c/4/6/c467522d-c094-4697-b9b2-bb59b2bcaca5/vcredist_x64.exe",
+      "sha256": "95aea9728c3de0a9727c889bbc4393d1c9d5939905fe78fea53aaed84000e49e",
+      "silent_args": [
+        "/install",
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "vcredist",
+      "detect_value": "2013:x64",
+      "filename_hint": "vcredist_2013_x64.exe"
+    },
+    {
+      "category": "Visual C++ Redistributables",
+      "name": "VC++ Redist 2015-2022 (x86)",
+      "url": "https://aka.ms/vs/17/release/vc_redist.x86.exe",
+      "evergreen": true,
+      "sha256": "0c09f2611660441084ce0df425c51c11e147e6447963c3690f97e0b25c55ed64",
+      "silent_args": [
+        "/install",
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "vcredist",
+      "detect_value": "2015:x86",
+      "filename_hint": "vc_redist.x86.exe"
+    },
+    {
+      "category": "Visual C++ Redistributables",
+      "name": "VC++ Redist 2015-2022 (x64)",
+      "url": "https://aka.ms/vs/17/release/vc_redist.x64.exe",
+      "evergreen": true,
+      "sha256": "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b",
+      "silent_args": [
+        "/install",
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "vcredist",
+      "detect_value": "2015:x64",
+      "filename_hint": "vc_redist.x64.exe"
+    },
+    {
+      "category": ".NET Desktop Runtime",
+      "name": ".NET Desktop Runtime 6.0 (x86)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/6.0.36/windowsdesktop-runtime-6.0.36-win-x86.exe",
+      "sha256": "4e77bd970df0a06528ee88d33e4a8c9fb85beedbdd7219b017083acf0c3aa39e",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_desktop",
+      "detect_value": "6.0:x86"
+    },
+    {
+      "category": ".NET Desktop Runtime",
+      "name": ".NET Desktop Runtime 6.0 (x64)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/6.0.36/windowsdesktop-runtime-6.0.36-win-x64.exe",
+      "sha256": "0d20debb26fc8b2bc84f25fbd9d4596a6364af8517ebf012e8b871127b798941",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_desktop",
+      "detect_value": "6.0:x64"
+    },
+    {
+      "category": ".NET Desktop Runtime",
+      "name": ".NET Desktop Runtime 7.0 (x86)",
+      "url": "https://download.visualstudio.microsoft.com/download/pr/b840017b-c69f-4724-a152-11020a0039e6/b74aa12e4ee765a3387a7dcd4ba56187/windowsdesktop-runtime-7.0.20-win-x86.exe",
+      "sha256": "58d32d9857bda5da99afc217669aedacdffb20aed61f15315718eeb3a455b273",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_desktop",
+      "detect_value": "7.0:x86"
+    },
+    {
+      "category": ".NET Desktop Runtime",
+      "name": ".NET Desktop Runtime 7.0 (x64)",
+      "url": "https://download.visualstudio.microsoft.com/download/pr/08bbfe8f-812d-479f-803b-23ea0bffce47/c320e4b037f3e92ab7ea92c3d7ea3ca1/windowsdesktop-runtime-7.0.20-win-x64.exe",
+      "sha256": "57e7c16e7226c9a29dbc3faedd9e5876cec494c7660528052f52160521e7b714",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_desktop",
+      "detect_value": "7.0:x64"
+    },
+    {
+      "category": ".NET Desktop Runtime",
+      "name": ".NET Desktop Runtime 8.0 (x86)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0.15/windowsdesktop-runtime-8.0.15-win-x86.exe",
+      "sha256": "fb47085b8d85c2c46738f110bd870ad5a3f4e2780d3f38b14523f8f79297ad94",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_desktop",
+      "detect_value": "8.0:x86"
+    },
+    {
+      "category": ".NET Desktop Runtime",
+      "name": ".NET Desktop Runtime 8.0 (x64)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0.15/windowsdesktop-runtime-8.0.15-win-x64.exe",
+      "sha256": "6b7f9390184892ce65e5405dacae596d28508c5b11a6ef292120399a1784b3e8",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_desktop",
+      "detect_value": "8.0:x64"
+    },
+    {
+      "category": ".NET Desktop Runtime",
+      "name": ".NET Desktop Runtime 9.0 (x86)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/9.0.4/windowsdesktop-runtime-9.0.4-win-x86.exe",
+      "sha256": "4dbd41e328e150385d55f8ac50c0c960505ee88265020cd4c74acd46ce6e55c2",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_desktop",
+      "detect_value": "9.0:x86"
+    },
+    {
+      "category": ".NET Desktop Runtime",
+      "name": ".NET Desktop Runtime 9.0 (x64)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/9.0.4/windowsdesktop-runtime-9.0.4-win-x64.exe",
+      "sha256": "526dd9b55389fb76816bbac42c97c17b802ebcd2107e73ffb2c77a74efd1fed1",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_desktop",
+      "detect_value": "9.0:x64"
+    },
+    {
+      "category": ".NET Desktop Runtime",
+      "name": ".NET Desktop Runtime 10.0 (x86)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.10/windowsdesktop-runtime-10.0.10-win-x86.exe",
+      "sha256": "9c174f8df1624a3c33c4e2bbcf99bb7c7166d1a319a2b624a8b84ae4ec692675",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_desktop",
+      "detect_value": "10.0:x86"
+    },
+    {
+      "category": ".NET Desktop Runtime",
+      "name": ".NET Desktop Runtime 10.0 (x64)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.10/windowsdesktop-runtime-10.0.10-win-x64.exe",
+      "sha256": "e82fc901c8f52d716293b2bc0830ce0dd254a06268c457a19e8fc503560a84d1",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_desktop",
+      "detect_value": "10.0:x64"
+    },
+    {
+      "category": "DirectX & Media",
+      "name": "DirectX End-User Runtime Web Installer",
+      "url": "https://download.microsoft.com/download/1/7/1/1718ccc4-6315-4d8e-9543-8e28a4e18c4c/dxwebsetup.exe",
+      "sha256": "2cf71d098c608c56e07f4655855a886c3102553f648df88458df616b26fd612f",
+      "silent_args": [
+        "/Q"
+      ],
+      "detect_type": "file",
+      "detect_value": "C:\\Windows\\System32\\D3DX9_43.dll"
+    },
+    {
+      "category": "DirectX & Media",
+      "name": "DirectX Offline Redistributable (Jun 2010)",
+      "url": "https://download.microsoft.com/download/8/4/A/84A35BF1-DAFE-4AE8-82AF-AD2AE20B6B14/directx_Jun2010_redist.exe",
+      "sha256": "053f76dcbb28802e23341b6a787e3b0791c0fa5c8d4d011b1044172dbf89c73b",
+      "silent_args": [],
+      "detect_type": "file",
+      "detect_value": "C:\\Windows\\System32\\D3DX9_43.dll",
+      "install_type": "directx_redist"
+    },
+    {
+      "category": "DirectX & Media",
+      "name": "XNA Framework Redistributable 4.0 Refresh",
+      "url": "https://download.microsoft.com/download/5/3/A/53A804C8-EC78-43CD-A0F0-2FB4D45603D3/xnafx40_redist.msi",
+      "filename_hint": "xnafx40_refresh.msi",
+      "sha256": "2b03c130c4bb5f106b9619bea8150201f7e982709cfe9a0cc8bde75ff0a83b27",
+      "silent_args": [
+        "/qn",
+        "/norestart"
+      ],
+      "detect_type": "registry",
+      "detect_value": "HKLM\\SOFTWARE\\Microsoft\\XNA\\Framework\\v4.0"
+    },
+    {
+      "category": "DirectX & Media",
+      "name": "XNA Framework Redistributable 3.1",
+      "url": "https://download.microsoft.com/download/5/9/1/5912526C-B950-4662-99B6-119A83E60E5C/xnafx31_redist.msi",
+      "sha256": "409173b3a4f4ee6ff4e6910eece26f95af8073efae2c9fa4c0f8dad24f7774de",
+      "silent_args": [
+        "/qn",
+        "/norestart"
+      ],
+      "detect_type": "registry",
+      "detect_value": "HKLM\\SOFTWARE\\Microsoft\\XNA\\Framework\\v3.1"
+    },
+    {
+      "category": "DirectX & Media",
+      "name": "Vulkan Runtime",
+      "url": "https://sdk.lunarg.com/sdk/download/latest/windows/vulkan-runtime.exe",
+      "filename_hint": "vulkan-runtime.exe",
+      "evergreen": true,
+      "sha256": "2e26a920afe0cc7adb49c3133fb9dd36fc7a4a1e93277717800c48b32eefffdf",
+      "silent_args": [
+        "/S"
+      ],
+      "detect_type": "file",
+      "detect_value": "C:\\Windows\\System32\\vulkan-1.dll"
+    },
+    {
+      "category": "DirectX & Media",
+      "name": "OpenAL",
+      "url": "https://www.openal.org/downloads/oalinst.zip",
+      "sha256": "d165bcb7628fd950d14847585468cc11943b2a1da92a59a839d397c68f9d4b06",
+      "zip_run": "oalinst.exe",
+      "silent_args": [
+        "/s"
+      ],
+      "detect_type": "registry",
+      "detect_value": "HKLM\\SOFTWARE\\OpenAL"
+    },
+    {
+      "category": "Microsoft Runtimes",
+      "name": "WebView2 Runtime",
+      "url": "https://go.microsoft.com/fwlink/p/?LinkId=2124703",
+      "filename_hint": "MicrosoftEdgeWebview2Setup.exe",
+      "evergreen": true,
+      "sha256": "f91077e2c116dcf6377e555d0d4a3a564d242351ad6718b6954658d4f74819c1",
+      "silent_args": [
+        "/silent",
+        "/install"
+      ],
+      "detect_type": "webview2",
+      "detect_value": ""
+    },
+    {
+      "category": "Microsoft Runtimes",
+      "name": "VS 2010 Tools for Office Runtime",
+      "url": "https://download.microsoft.com/download/8/6/4/8641e164-7796-4b34-81c7-30d24a5bd533/vstor_redist.exe",
+      "sha256": "9511042eabb4123827d1799154b9b2754c8509ca742d4e1aea919084563f0b1e",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "registry",
+      "detect_value": "HKLM\\SOFTWARE\\Microsoft\\VSTO Runtime Setup\\v4"
+    },
+    {
+      "category": "Microsoft Runtimes",
+      "name": "NVIDIA PhysX System Software",
+      "url": "https://us.download.nvidia.com/Windows/9.23.1019/PhysX_9.23.1019_SystemSoftware.exe",
+      "sha256": "9b42b84e881769d681e09f62a1b51532616b2e6a2d5d99d0ccae6eb5fbbc208c",
+      "silent_args": [
+        "/s",
+        "/v/qn"
+      ],
+      "detect_type": "file",
+      "detect_value": "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX"
+    },
+    {
+      "category": "Microsoft Runtimes",
+      "name": "Java SE Development Kit 21",
+      "url": "https://download.oracle.com/java/21/latest/jdk-21_windows-x64_bin.exe",
+      "evergreen": true,
+      "sha256": "2d5a1fd908636d1659945885f8206bcfb72ab907055ed8bb90e18739e8ed73b8",
+      "silent_args": [
+        "/s"
+      ],
+      "detect_type": "jdk",
+      "detect_value": "21",
+      "filename_hint": "jdk-21_windows-x64_bin.exe"
+    },
+    {
+      "category": "Microsoft Runtimes",
+      "name": "Java 8 Runtime (JRE) (x86)",
+      "url": "https://javadl.oracle.com/webapps/download/AutoDL?BundleId=253194_f7fe8e644f724108bdb54139381e29a7",
+      "filename_hint": "jre-8-windows-x86.exe",
+      "sha256": "ca758283141f5dc6bd99073533988242fe2d891fa937b389eeb85646760b5b23",
+      "silent_args": [
+        "/s"
+      ],
+      "detect_type": "java",
+      "detect_value": ""
+    },
+    {
+      "category": "Microsoft Runtimes",
+      "name": "Java 8 Runtime (JRE) (x64)",
+      "url": "https://javadl.oracle.com/webapps/download/AutoDL?BundleId=253195_f7fe8e644f724108bdb54139381e29a7",
+      "filename_hint": "jre-8-windows-x64.exe",
+      "sha256": "4faf518d1bf0c5e22cfc3bdfb96c170192255cafb115f4847516c333c2c2af50",
+      "silent_args": [
+        "/s"
+      ],
+      "detect_type": "java",
+      "detect_value": ""
+    },
+    {
+      "category": "Developer Tools",
+      "name": ".NET SDK 6.0 (x64)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/6.0.428/dotnet-sdk-6.0.428-win-x64.exe",
+      "sha256": "49c9599593e90eb6abd3643df5d15240d24279e5e9c24df52c31a3e232e6da3b",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet",
+      "detect_value": "6.0"
+    },
+    {
+      "category": "Developer Tools",
+      "name": ".NET SDK 8.0 (x64)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/8.0.408/dotnet-sdk-8.0.408-win-x64.exe",
+      "sha256": "0a728a68d4cf7a146d18086b213f3dae39db592e5c36165218e79c2e2354388e",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet",
+      "detect_value": "8.0"
+    },
+    {
+      "category": "Developer Tools",
+      "name": ".NET SDK 9.0 (x64)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/9.0.203/dotnet-sdk-9.0.203-win-x64.exe",
+      "sha256": "f19115d0d8b249576a39418486132da5f339560911c59745de242a4e773d7bcd",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet",
+      "detect_value": "9.0"
+    },
+    {
+      "category": "Developer Tools",
+      "name": ".NET SDK 10.0 (x64)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.302/dotnet-sdk-10.0.302-win-x64.exe",
+      "sha256": "b2618a69a4ae385eb03bde0de89468881318c6338b14e67574d691e145a7ce1c",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet",
+      "detect_value": "10.0"
+    },
+    {
+      "category": ".NET Desktop Runtime",
+      "name": "ASP.NET Core Runtime 6.0 (x64)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/6.0.36/aspnetcore-runtime-6.0.36-win-x64.exe",
+      "sha256": "06dbd26509079497c363b28060874d75d19c3797b83020f3c53f37faa755a61d",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_desktop",
+      "detect_value": "6.0:x64:aspnet"
+    },
+    {
+      "category": ".NET Desktop Runtime",
+      "name": "ASP.NET Core Runtime 8.0 (x64)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/8.0.15/aspnetcore-runtime-8.0.15-win-x64.exe",
+      "sha256": "20ae532d51d7cf034bec660c16d2c110198e2c6ace17d7a1d2d4262ceed44a05",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_desktop",
+      "detect_value": "8.0:x64:aspnet"
+    },
+    {
+      "category": ".NET Desktop Runtime",
+      "name": "ASP.NET Core Runtime 9.0 (x64)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/9.0.4/aspnetcore-runtime-9.0.4-win-x64.exe",
+      "sha256": "c263a60645f3ccab8d7635d4348ff444abf2a5812fc44f22b7ff5902c708819c",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_desktop",
+      "detect_value": "9.0:x64:aspnet"
+    },
+    {
+      "category": ".NET Desktop Runtime",
+      "name": "ASP.NET Core Runtime 10.0 (x64)",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/10.0.10/aspnetcore-runtime-10.0.10-win-x64.exe",
+      "sha256": "586bcc0cf291ecde7bacff811d28c1cabd36b1f3fb81801ce4d2fb788c61bc88",
+      "silent_args": [
+        "/quiet",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_desktop",
+      "detect_value": "10.0:x64:aspnet"
+    },
+    {
+      "category": "Microsoft Runtimes",
+      "name": "MSXML 4.0 SP3 Parser",
+      "url": "https://download.microsoft.com/download/A/7/6/A7611FFC-4F68-4FB1-A931-95882EC013FC/msxml4-KB2758694-enu.exe",
+      "sha256": "52d80e6e7ba94437199a2e6b51f00c7f483269c02bedec2253c4602f5209b31b",
+      "silent_args": [
+        "/q"
+      ],
+      "detect_type": "msxml4",
+      "detect_value": ""
+    },
+    {
+      "category": "Microsoft Runtimes",
+      "name": ".NET Framework 3.5",
+      "url": "",
+      "filename_hint": "",
+      "install_type": "dism_feature",
+      "dism_feature": "NetFx3",
+      "silent_args": [],
+      "detect_type": "dotnet_framework35",
+      "detect_value": "",
+      "sha256": ""
+    },
+    {
+      "category": "Microsoft Runtimes",
+      "name": "DirectPlay (Eski Oyun Desteği)",
+      "url": "",
+      "filename_hint": "",
+      "install_type": "dism_feature",
+      "dism_feature": "DirectPlay",
+      "silent_args": [],
+      "detect_type": "file",
+      "detect_value": "C:\\Windows\\SysWOW64\\dplayx.dll",
+      "sha256": ""
+    },
+    {
+      "category": "Microsoft Runtimes",
+      "name": ".NET Framework 4.8.1",
+      "url": "https://download.microsoft.com/download/4/b/2/cd00d4ed-ebdd-49ee-8a33-eabc3d1030e3/NDP481-x86-x64-AllOS-ENU.exe",
+      "filename_hint": "NDP481-x86-x64-AllOS-ENU.exe",
+      "install_type": "",
+      "silent_args": [
+        "/q",
+        "/norestart"
+      ],
+      "detect_type": "dotnet_framework",
+      "detect_value": "533320",
+      "sha256": "c0ca2e0c9cd18a24a0a77369a13fae2c2c4e8bc83355dd24e5ddc00f9d791fe3"
+    }
+  ]
+}

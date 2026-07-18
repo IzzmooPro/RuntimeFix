@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-hash_updater.py - RuntimeFix config.json SHA-256 Otomatik Güncelleyici
+hash_updater.py - RuntimeFix data/config.json SHA-256 Otomatik Güncelleyici
 
 Kullanım:
     python debug/hash_updater.py          (proje kökünden)
     python hash_updater.py                (debug/ klasöründen)
 
 Ne yapar:
-  1. config.json'daki tüm bileşenleri okur.
+  1. data/config.json'daki tüm bileşenleri okur.
   2. Her bileşen için downloads/ cache'ine bakar — dosya varsa yeniden indirmez.
   3. Yoksa dosyayı indirir ve downloads/ klasörüne kaydeder.
-  4. SHA-256 hesaplar ve config.json'a yazar.
+  4. SHA-256 hesaplar ve data/config.json'a yazar.
 
 Gereksinim: pip install requests
 """
@@ -35,7 +35,7 @@ except ImportError:
 # ── Yol ayarları ────────────────────────────────────────────────────────────
 _SCRIPT_DIR = Path(__file__).resolve().parent          # debug/
 _ROOT_DIR   = _SCRIPT_DIR.parent                       # proje kökü
-CONFIG_PATH = _ROOT_DIR / "config.json"
+CONFIG_PATH = _ROOT_DIR / "data" / "config.json"
 CACHE_DIR   = _ROOT_DIR / "downloads"
 CACHE_DIR.mkdir(exist_ok=True)
 
@@ -176,7 +176,7 @@ def main():
         else:
             comp["sha256"] = sha
             updated += 1
-            print("  ✔ config.json güncellendi.")
+            print("  ✔ data/config.json güncellendi.")
 
         print()
 
@@ -207,7 +207,7 @@ def main():
     if updated == 0 and not errors:
         print("\nTüm hash'ler zaten güncel.")
     elif updated > 0:
-        print(f"\nconfig.json başarıyla güncellendi ({updated} hash eklendi).")
+        print(f"\ndata/config.json başarıyla güncellendi ({updated} hash eklendi).")
 
     input("\nDevam etmek için Enter'a basın...")
 

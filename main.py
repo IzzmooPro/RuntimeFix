@@ -24,7 +24,7 @@ from app_info import APP_VERSION
 logger = setup_logging()
 
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
-LOCAL_CONFIG = os.path.join(BASE_DIR, "config.json")
+LOCAL_CONFIG = os.path.join(BASE_DIR, "data", "config.json")
 
 
 def _load_local_config() -> dict:
@@ -39,8 +39,8 @@ def load_config() -> dict:
     try:
         return _load_local_config()
     except Exception as exc:
-        logger.critical(f"Cannot load config.json: {exc}")
-        raise SystemExit(f"Cannot load config.json:\n{exc}") from exc
+        logger.critical(f"Cannot load data/config.json: {exc}")
+        raise SystemExit(f"Cannot load data/config.json:\n{exc}") from exc
 
 
 def main() -> None:
@@ -80,12 +80,12 @@ def main() -> None:
     components      = config.get("components", [])
     allowed_domains = config.get("allowed_domains", [])
 
-    logger.info(f"✔ config.json yüklendi — {len(components)} bileşen tanımlı")
+    logger.info(f"✔ data/config.json yüklendi — {len(components)} bileşen tanımlı")
     logger.info(f"  İzin verilen domainler: {', '.join(allowed_domains[:5])}{'...' if len(allowed_domains) > 5 else ''}")
 
     if not components:
         QMessageBox.warning(None, "Empty Config",
-            "config.json contains no components.")
+            "data/config.json contains no components.")
         sys.exit(0)
 
     security = SecurityManager(allowed_domains if allowed_domains else None)

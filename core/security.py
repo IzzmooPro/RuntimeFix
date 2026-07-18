@@ -16,7 +16,7 @@ from typing import List, Optional
 
 logger = logging.getLogger("RuntimeFix.security")
 
-# Default whitelist – also loaded dynamically from config.json at startup
+# Default whitelist – also loaded dynamically from data/config.json at startup
 DEFAULT_ALLOWED_DOMAINS: List[str] = [
     "builds.dotnet.microsoft.com",
     "download.microsoft.com",
@@ -98,7 +98,7 @@ class SecurityManager:
             raise SecurityError(
                 f"No SHA-256 configured for {Path(file_path).name}. "
                 f"Integrity cannot be verified — add the sha256 value to "
-                f"config.json (debug/hash_updater.py can compute it)."
+                f"data/config.json (debug/hash_updater.py can compute it)."
             )
 
         computed = self._compute_sha256(file_path)

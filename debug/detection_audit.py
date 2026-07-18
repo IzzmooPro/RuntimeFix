@@ -133,7 +133,7 @@ INDEP = {
     ".NET Framework 4.8.1": lambda: f(WIN, "Microsoft.NET", "Framework64", "v4.0.30319", "clr.dll"),
 }
 
-cfg = json.load(open(os.path.join(ROOT, "config.json"), encoding="utf-8"))
+cfg = json.load(open(os.path.join(ROOT, "data", "config.json"), encoding="utf-8"))
 match = mismatch = 0
 mismatches = []
 print(f"{'Bileşen':<44} {'Program':<8} {'Bağımsız':<9} Sonuç")

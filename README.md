@@ -143,9 +143,10 @@ RuntimeFix/
 │   ├── debug_registry.py        # Registry tanı aracı
 │   ├── detection_audit.py       # Tespit sonuçlarını denetler
 │   └── hash_updater.py          # SHA-256 otomatik güncelleyici
+├── data/
+│   └── config.json              # Bileşen veritabanı
 ├── assets/                      # Uygulama logosu ve Windows ikonu
 ├── main.py                      # Ana giriş noktası
-├── config.json                  # Bileşen veritabanı
 └── requirements.txt             # Python bağımlılıkları
 ```
 
@@ -175,7 +176,7 @@ Her bileşen arka planda, kullanıcıya kurulum ekranı göstermeden yüklenir. 
 ## 🛠️ Geliştirici Araçları
 
 ### Hash Güncelleyici
-`config.json`'daki tüm bileşenlerin SHA-256 hash'lerini otomatik hesaplar:
+`data/config.json` dosyasındaki tüm bileşenlerin SHA-256 hash'lerini otomatik hesaplar:
 ```bash
 python debug\hash_updater.py
 ```

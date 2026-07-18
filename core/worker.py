@@ -229,7 +229,7 @@ class DownloadInstallWorker(QObject):
                 f"The file for {name} doesn't match the expected checksum. "
                 f"This component is downloaded from an always-latest URL, so the "
                 f"publisher has most likely released a new version. "
-                f"Update the sha256 value in config.json (debug/hash_updater.py "
+                f"Update the sha256 value in data/config.json (debug/hash_updater.py "
                 f"can do this automatically) and try again.\n\nDetails: {exc}"
             )
         return (

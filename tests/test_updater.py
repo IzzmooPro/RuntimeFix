@@ -21,7 +21,7 @@ class UpdaterTests(unittest.TestCase):
     def test_digest_is_required_and_must_be_sha256(self):
         payload = b"RuntimeFix updater test"
         expected = hashlib.sha256(payload).hexdigest()
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             path = Path(directory) / "setup.exe"
             path.write_bytes(payload)
 

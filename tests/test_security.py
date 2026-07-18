@@ -30,7 +30,7 @@ class SecurityTests(unittest.TestCase):
     def test_sha256_validation(self):
         payload = b"RuntimeFix security test"
         digest = hashlib.sha256(payload).hexdigest()
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             path = Path(directory) / "file.exe"
             path.write_bytes(payload)
             self.security.verify_sha256(str(path), digest)

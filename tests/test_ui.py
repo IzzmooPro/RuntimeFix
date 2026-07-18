@@ -10,7 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "core"))
 
-from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PyQt6.QtWidgets import QApplication, QLabel  # noqa: E402
 
 from security import SecurityManager  # noqa: E402
 from ui import (  # noqa: E402
@@ -30,7 +30,7 @@ class UiTests(unittest.TestCase):
 
     def setUp(self):
         with patch("ui.QTimer.singleShot") as timer:
-            self.window = MainWindow([], SecurityManager(), "3.0.0")
+            self.window = MainWindow([], SecurityManager(), "3.00")
         delays = [call.args[0] for call in timer.call_args_list]
         self.assertIn(250, delays)
         self.assertIn(400, delays)
@@ -43,6 +43,11 @@ class UiTests(unittest.TestCase):
         self.assertIn("QMessageBox", stylesheet)
         self.assertIn("background-color: #17181c", stylesheet)
         self.assertIn("QMessageBox QPushButton:default", stylesheet)
+
+    def test_version_text_preserves_two_digits(self):
+        labels = {label.text() for label in self.window.findChildren(QLabel)}
+        self.assertIn("v3.00", labels)
+        self.assertNotIn("v3.0", labels)
 
     def test_specific_size_rule_wins_over_generic_rule(self):
         self.assertEqual(
@@ -66,8 +71,8 @@ class UiTests(unittest.TestCase):
         self.window._update_check_mode = "startup"
         info = {
             "available": True,
-            "version": "3.0.1",
-            "download_url": "https://example.com/RuntimeFix-Setup-3.0.1.exe",
+            "version": "3.05",
+            "download_url": "https://example.com/RuntimeFix-Setup-3.05.exe",
         }
         with (
             patch("ui.QTimer.singleShot"),
@@ -80,7 +85,7 @@ class UiTests(unittest.TestCase):
         self.assertEqual(self.window._update_check_mode, "silent")
 
     def test_verified_update_starts_setup_without_second_prompt(self):
-        setup_path = str(ROOT / "RuntimeFix-Setup-3.0.1.exe")
+        setup_path = str(ROOT / "RuntimeFix-Setup-3.05.exe")
         with (
             patch("ui.QTimer.singleShot") as timer,
             patch("ui.ask_question") as question,
@@ -93,7 +98,7 @@ class UiTests(unittest.TestCase):
         self.assertGreaterEqual(timer.call_count, 1)
 
     def test_update_downloader_passes_cancellation_callback(self):
-        downloader = UpdateDownloader({"version": "3.0.1"}, str(ROOT))
+        downloader = UpdateDownloader({"version": "3.05"}, str(ROOT))
         downloader.cancel()
         with patch(
             "ui.download_update",
@@ -104,7 +109,7 @@ class UiTests(unittest.TestCase):
         self.assertTrue(cancel_check())
 
     def test_update_setup_waits_for_other_background_threads(self):
-        setup_path = str(ROOT / "RuntimeFix-Setup-3.0.1.exe")
+        setup_path = str(ROOT / "RuntimeFix-Setup-3.05.exe")
         scan_thread = MagicMock()
         scan_thread.isRunning.return_value = True
         self.window._scan_thread = scan_thread

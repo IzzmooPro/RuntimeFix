@@ -1,4 +1,4 @@
-# 🛠️ RuntimeFix v3.0.0
+# 🛠️ RuntimeFix v3.00
 
 <p align="center">
   <img src="assets/runtimefix-logo.png" width="128" alt="RuntimeFix logosu">
@@ -10,7 +10,7 @@
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Components](https://img.shields.io/badge/Components-46-orange)
 
-**RuntimeFix v3.0.0**, sisteminizde eksik olan runtime bileşenlerini otomatik olarak tespit edip tek tıkla kuran modern bir araçtır. Oyun oynamadan önce veya bir uygulama çalıştırırken karşılaşılan "Visual C++ bulunamadı", ".NET Runtime eksik" gibi hata mesajlarına son verir.
+**RuntimeFix v3.00**, sisteminizde eksik olan runtime bileşenlerini otomatik olarak tespit edip tek tıkla kuran modern bir araçtır. Oyun oynamadan önce veya bir uygulama çalıştırırken karşılaşılan "Visual C++ bulunamadı", ".NET Runtime eksik" gibi hata mesajlarına son verir.
 
 ---
 
@@ -192,9 +192,8 @@ python -m unittest discover -s tests -v
 
 ## 🔢 Sürümleme
 
-RuntimeFix 3.x sürümleri SemVer düzenini kullanır: hata düzeltmeleri `3.0.1`,
-geriye uyumlu özellikler `3.1.0`, büyük/uyumsuz değişiklikler `4.0.0` olarak
-ilerler.
+RuntimeFix sürümleri iki basamaklı artış düzenini kullanır: `3.00`, `3.05`,
+`3.10`, `3.15` şeklinde ilerler. Ana seri değiştiğinde ilk sürüm `4.00` olur.
 
 ---
 

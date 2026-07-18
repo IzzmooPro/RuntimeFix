@@ -26,10 +26,12 @@ class UpdaterTests(unittest.TestCase):
         self.assertTrue(is_newer_version("v2.3.1", "2.3"))
         self.assertFalse(is_newer_version("2.3", "2.3.0"))
         self.assertFalse(is_newer_version("2.2", "2.3"))
-        self.assertTrue(is_newer_version("3.0.1", "3.0.0"))
-        for invalid in ("3", "release-3.0.0", "3.0.0-beta", ""):
+        self.assertTrue(is_newer_version("3.05", "3.00"))
+        self.assertTrue(is_newer_version("3.10", "3.05"))
+        self.assertFalse(is_newer_version("3.5", "3.05"))
+        for invalid in ("3", "release-3.00", "3.00-beta", ""):
             with self.subTest(invalid=invalid), self.assertRaises(UpdateError):
-                is_newer_version(invalid, "3.0.0")
+                is_newer_version(invalid, "3.00")
 
     def test_digest_is_required_and_must_be_sha256(self):
         payload = b"RuntimeFix updater test"
@@ -54,24 +56,24 @@ class UpdaterTests(unittest.TestCase):
     def test_only_exact_setup_asset_is_selected(self):
         assets = [
             {
-                "name": "Other-Setup-3.0.0.exe",
+                "name": "Other-Setup-3.00.exe",
                 "browser_download_url": "https://github.com/other.exe",
             },
             {
-                "name": "RuntimeFix-Setup-3.0.0.exe",
+                "name": "RuntimeFix-Setup-3.00.exe",
                 "browser_download_url": "https://github.com/runtimefix.exe",
             },
         ]
         self.assertEqual(
-            _pick_setup_asset(assets, "3.0.0"),
+            _pick_setup_asset(assets, "3.00"),
             assets[1],
         )
-        self.assertIsNone(_pick_setup_asset(assets, "3.0.1"))
+        self.assertIsNone(_pick_setup_asset(assets, "3.05"))
 
     def test_update_urls_are_restricted_to_github_hosts(self):
         for url in (
             "https://api.github.com/repos/IzzmooPro/RuntimeFix/releases/latest",
-            "https://github.com/IzzmooPro/RuntimeFix/releases/download/v3.0.0/a.exe",
+            "https://github.com/IzzmooPro/RuntimeFix/releases/download/v3.00/a.exe",
             "https://release-assets.githubusercontent.com/file",
         ):
             _validate_update_url(url)
@@ -100,8 +102,8 @@ class UpdaterTests(unittest.TestCase):
                 return b"data"
 
         info = {
-            "version": "3.0.0",
-            "asset_name": "RuntimeFix-Setup-3.0.0.exe",
+            "version": "3.00",
+            "asset_name": "RuntimeFix-Setup-3.00.exe",
             "download_url": "https://github.com/setup.exe",
             "digest": "sha256:" + "0" * 64,
         }

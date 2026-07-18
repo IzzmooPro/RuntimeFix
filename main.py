@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-main.py - Application entry point for RuntimeFix v1.0
+main.py - Application entry point for RuntimeFix
 """
 
 import json

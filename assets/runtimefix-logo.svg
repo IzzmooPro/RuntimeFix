@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>RuntimeFix</title>
+  <circle cx="256" cy="256" r="252" fill="#16213e"/>
+  <path
+    fill="#2dd4bf"
+    d="M256 51 451 128v154L256 471 61 282V128Z"
+  />
+  <path
+    fill="#ffffff"
+    d="m292 113-97 153h71l-46 133 108-169h-72Z"
+  />
+</svg>

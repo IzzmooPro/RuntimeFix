@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-ui.py — RuntimeFix v2.0 — "Sakin Modern" koyu tema
+ui.py — RuntimeFix — "Sakin Modern" koyu tema
 Tasarım ilkeleri:
   - Tek vurgu rengi (#8ab4f8), yalnızca ana eylem butonunda
   - Üstte sağlık halkası + tek cümlelik durum + tek buton
@@ -12,6 +12,7 @@ Eski arayüz yedeği: ui_legacy.py.bak
 import logging
 import os
 import subprocess
+import sys
 import tempfile
 from typing import List, Optional
 
@@ -131,7 +132,18 @@ def estimate_size_mb(component: dict) -> int:
 
 
 def make_app_icon(size: int = 32) -> QIcon:
-    """Kod içi vektörel uygulama ikonu: koyu daire + kalkan + şimşek."""
+    """Paketlenmiş RuntimeFix ikonunu yükler; yoksa vektörel yedeği çizer."""
+    base_dir = getattr(
+        sys,
+        "_MEIPASS",
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    )
+    icon_path = os.path.join(base_dir, "assets", "runtimefix.ico")
+    if os.path.isfile(icon_path):
+        icon = QIcon(icon_path)
+        if not icon.isNull():
+            return icon
+
     px = QPixmap(size, size)
     px.fill(Qt.GlobalColor.transparent)
     p = QPainter(px)

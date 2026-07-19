@@ -13,6 +13,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from typing import List, Optional
 
 try:
@@ -44,6 +45,9 @@ from app_info import (
 from updater import check_latest_release, download_update
 
 logger = logging.getLogger("RuntimeFix.ui")
+
+# Tarama bu süreyi aşarsa kullanıcıya sessiz donma yerine uyarı gösterilir
+SCAN_STALL_WARNING_MS = 40_000
 
 # ── Palet — monokrom zemin + tek turkuaz vurgu ──────────────────────────────
 C_BG       = "#17181c"   # pencere zemini (yumuşak antrasit)
@@ -878,6 +882,7 @@ class MainWindow(QWidget):
         self._close_pending = False
         self._update_in_progress = False
         self._pending_update_setup_path = ""
+        self._scan_started_at = 0.0
 
         if getattr(sys, "frozen", False):
             _log_dir = os.path.join(tempfile.gettempdir(), "RuntimeFix_logs")
@@ -1417,6 +1422,11 @@ class MainWindow(QWidget):
         logger.info(f"[TARAMA] Başladı — {len(self._components)} bileşen")
         self._state = "scanning"
         self._refresh_hero()
+        # Tarama tespit için işletim sistemine sorular sorar; bunlardan biri
+        # yanıt vermezse pencere sonsuza kadar "taranıyor" görünürdü. Gözcü,
+        # sessiz donma yerine görünür bir uyarı üretir.
+        self._scan_started_at = time.monotonic()
+        QTimer.singleShot(SCAN_STALL_WARNING_MS, self._warn_if_scan_stalled)
         self._scan_thread = QThread()
         self._scan_worker = ScanWorker(self._components)
         self._scan_worker.moveToThread(self._scan_thread)
@@ -1474,6 +1484,17 @@ class MainWindow(QWidget):
             self._set_busy(True)
         self._on_search(self._search_box.text())
         # Not: taramada ses yok — ses yalnızca yükleme bittiğinde çalar.
+
+    def _warn_if_scan_stalled(self):
+        """Tarama makul süreyi aştıysa kullanıcıya durumu söyler."""
+        if self._state != "scanning" or self._close_pending:
+            return
+        elapsed = time.monotonic() - self._scan_started_at
+        logger.warning(
+            f"[TARAMA] {elapsed:.0f} saniyedir sürüyor — bir sistem sorgusu "
+            f"yanıt vermiyor olabilir."
+        )
+        self._subline.setText(T(self._lang, "scan_slow"))
 
     def _cleanup_scan_thread(self):
         self._scan_thread = None

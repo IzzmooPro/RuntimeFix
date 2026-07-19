@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -10,7 +11,10 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "core"))
 
+import utils  # noqa: E402
 from utils import (  # noqa: E402
+    detect_dotnet_desktop,
+    detect_dotnet_sdk,
     detect_file_exists,
     detect_java,
     detect_windows_feature,
@@ -176,6 +180,64 @@ class UtilsTests(unittest.TestCase):
             timeout=60,
         )
         self.assertEqual((result.stdout or "").strip(), "OK")
+
+    def test_dotnet_versions_are_read_as_registry_values_not_subkeys(self):
+        """
+        .NET sürümleri anahtar altında DEĞER adı olarak durur ("8.0.25" = 1).
+        Alt anahtar sayan eski kod hep boş dönüyor, tespit CLI'ya düşüyor ve
+        her taramada ~24 alt süreç açılıyordu; kurulu sürüm bu yüzden donuyordu.
+        """
+        versions = ["8.0.25", "10.0.10", "6.0.36"]
+
+        class FakeKey:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        def fake_query_info(_key):
+            return (0, len(versions), 0)  # alt anahtar YOK, değer VAR
+
+        def fake_enum_value(_key, index):
+            return (versions[index], 1, 4)
+
+        with (
+            patch("utils.winreg.OpenKey", return_value=FakeKey()),
+            patch("utils.winreg.QueryInfoKey", side_effect=fake_query_info),
+            patch("utils.winreg.EnumValue", side_effect=fake_enum_value),
+        ):
+            found = utils._dotnet_versions_in_registry(r"SOFTWARE\ornek")
+        self.assertEqual(sorted(set(found)), sorted(set(versions)))
+
+    def test_dotnet_detection_needs_no_subprocess_when_disk_has_it(self):
+        """Disk kaynağı varken alt süreç açılmamalı — kilitlenmenin yolu budur."""
+        with (
+            patch("utils._dotnet_versions_on_disk", return_value=["8.0.15", "9.0.4"]),
+            patch("utils.run_hidden") as run,
+        ):
+            self.assertTrue(detect_dotnet_desktop("8.0", "x64", "desktop"))
+            self.assertTrue(detect_dotnet_sdk("9.0"))
+            run.assert_not_called()
+
+    def test_registry_is_used_when_disk_is_unavailable(self):
+        with (
+            patch("utils._dotnet_versions_on_disk", return_value=[]),
+            patch("utils._dotnet_versions_in_registry", return_value=["10.0.10"]),
+            patch("utils.run_hidden", side_effect=AssertionError("alt süreç açıldı")),
+        ):
+            self.assertTrue(detect_dotnet_desktop("10.0", "x64", "desktop"))
+
+    def test_subprocess_never_inherits_an_invalid_stdin(self):
+        """
+        Konsolsuz (pencere modunda paketlenmiş) uygulamada devralınan stdin
+        geçersizdir; alt süreç okumaya kalkarsa süresiz bloke olur.
+        """
+        with patch("utils.subprocess.run") as run:
+            run_hidden(["whoami"])
+        self.assertEqual(
+            run.call_args.kwargs.get("stdin"), subprocess.DEVNULL
+        )
 
     def test_unknown_detection_type_is_not_assumed_installed(self):
         self.assertFalse(

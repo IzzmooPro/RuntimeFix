@@ -148,21 +148,96 @@ def run_hidden(cmd, timeout: int = 15, env=None):
         cmd,
         check=False, capture_output=True, text=True, timeout=timeout,
         env=env,
+        # stdin AÇIKÇA kapatılır: pencere modunda paketlenmiş (konsolsuz) bir
+        # uygulamada standart girdi tanıtıcısı geçersizdir ve devralan alt
+        # süreç okumaya kalkarsa süresiz bloke olabilir. Kısayoldan açılan
+        # kurulu sürümde taramanın kilitlenmesinin sebebi buydu.
+        stdin=subprocess.DEVNULL,
         **kwargs,
     )
 
 
 
 
+def dotnet_root(arch: str = "x64") -> str:
+    """Mimariye göre .NET kurulum kökü."""
+    if arch == "x86":
+        base = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
+    else:
+        base = os.environ.get("ProgramFiles", r"C:\Program Files")
+    return os.path.join(base, "dotnet")
+
+
+def _dotnet_versions_on_disk(relative_dir: str, arch: str = "x64") -> list[str]:
+    """
+    ``<dotnet kökü>/<relative_dir>`` altındaki sürüm klasörlerini listeler.
+
+    En güvenilir ve en ucuz kaynak budur: .NET her sürümü kendi klasörüne
+    kurar. Registry biçimi sürümden sürüme değişebiliyor, CLI ise alt süreç
+    açmayı gerektiriyor.
+    """
+    directory = os.path.join(dotnet_root(arch), relative_dir)
+    try:
+        return [entry.name for entry in os.scandir(directory) if entry.is_dir()]
+    except OSError:
+        return []
+
+
+def _dotnet_versions_in_registry(subkey: str) -> list[str]:
+    """
+    .NET kurulum anahtarındaki sürümleri okur.
+
+    DİKKAT: sürümler alt anahtar DEĞİL, **değer adı** olarak tutulur
+    (``"8.0.25" = 1``). Alt anahtar sayan eski kod her zaman boş dönüyor,
+    bu yüzden tespit her seferinde CLI'ya düşüp gereksiz alt süreç açıyordu.
+    """
+    if not _WINREG_AVAILABLE or winreg is None:
+        return []
+
+    versions: list[str] = []
+    for flag in (winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
+                 winreg.KEY_READ | winreg.KEY_WOW64_32KEY):
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, subkey, 0, flag) as key:
+                value_count = winreg.QueryInfoKey(key)[1]
+                for index in range(value_count):
+                    try:
+                        name, _value, _type = winreg.EnumValue(key, index)
+                        if name:
+                            versions.append(name)
+                    except OSError:
+                        break
+        except (FileNotFoundError, OSError):
+            continue
+    return versions
+
+
+def _matches_prefix(versions, version_prefix: str) -> bool:
+    return any(str(v).startswith(version_prefix) for v in versions)
+
+
 def detect_dotnet_sdk(version_prefix: str) -> bool:
     """
-    Run `dotnet --list-sdks` and check whether any installed SDK starts with
-    *version_prefix* (e.g. "8.0").
+    .NET SDK tespiti (örn. "8.0").
+
+    Sıra: disk → registry → CLI. İlk ikisi alt süreç açmaz; CLI yalnızca
+    ikisi de sonuç veremezse denenir.
     """
+    if _matches_prefix(_dotnet_versions_on_disk("sdk"), version_prefix):
+        logger.debug(f".NET SDK {version_prefix} bulundu (disk)")
+        return True
+
+    for subkey in (r"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sdk",
+                   r"SOFTWARE\WOW6432Node\dotnet\Setup\InstalledVersions\x64\sdk"):
+        if _matches_prefix(_dotnet_versions_in_registry(subkey), version_prefix):
+            logger.debug(f".NET SDK {version_prefix} bulundu (registry)")
+            return True
+
     try:
         result = run_hidden(["dotnet", "--list-sdks"])
-        for line in result.stdout.splitlines():
+        for line in (result.stdout or "").splitlines():
             if line.startswith(version_prefix):
+                logger.debug(f".NET SDK {version_prefix} bulundu (CLI)")
                 return True
         return False
     except FileNotFoundError:
@@ -603,27 +678,22 @@ def detect_dotnet_desktop(version_prefix: str, arch: str = "x64", flavor: str = 
         else "Microsoft.WindowsDesktop.App"
     )
 
-    # 1) Registry — hızlı, pencere açmaz
-    if _WINREG_AVAILABLE and winreg is not None:
-        reg_roots = [
-            f"SOFTWARE\\dotnet\\Setup\\InstalledVersions\\{arch}\\sharedfx\\{runtime_name}",
-            f"SOFTWARE\\WOW6432Node\\dotnet\\Setup\\InstalledVersions\\{arch}\\sharedfx\\{runtime_name}",
-        ]
-        for subkey in reg_roots:
-            for flag in (winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
-                         winreg.KEY_READ | winreg.KEY_WOW64_32KEY):
-                try:
-                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, subkey, 0, flag) as k:
-                        for i in range(winreg.QueryInfoKey(k)[0]):
-                            try:
-                                ver = winreg.EnumKey(k, i)
-                                if ver.startswith(version_prefix):
-                                    logger.debug(f".NET {flavor} {version_prefix} {arch} found in registry")
-                                    return True
-                            except OSError:
-                                pass
-                except FileNotFoundError:
-                    pass
+    # 1) Disk — en güvenilir kaynak, alt süreç ve registry biçimi bağımlılığı yok
+    if _matches_prefix(
+        _dotnet_versions_on_disk(os.path.join("shared", runtime_name), arch),
+        version_prefix,
+    ):
+        logger.debug(f".NET {flavor} {version_prefix} {arch} bulundu (disk)")
+        return True
+
+    # 2) Registry — sürümler DEĞER adı olarak tutulur (alt anahtar değil)
+    for subkey in (
+        f"SOFTWARE\\dotnet\\Setup\\InstalledVersions\\{arch}\\sharedfx\\{runtime_name}",
+        f"SOFTWARE\\WOW6432Node\\dotnet\\Setup\\InstalledVersions\\{arch}\\sharedfx\\{runtime_name}",
+    ):
+        if _matches_prefix(_dotnet_versions_in_registry(subkey), version_prefix):
+            logger.debug(f".NET {flavor} {version_prefix} {arch} bulundu (registry)")
+            return True
 
     # 2) CLI fallback — mimari bazlı dotnet.exe çalıştır (x86 için x86 dotnet'i dene)
     # Program Files (x86) altındaki dotnet x86 runtime'larını, normal altındaki x64'ü listeler.

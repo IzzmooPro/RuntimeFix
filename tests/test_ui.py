@@ -216,6 +216,22 @@ class UiTests(unittest.TestCase):
         self.assertEqual(len(seen), 3)          # 20 değil, 3'te durdu
         self.assertEqual(len(results[0]), 3)    # kısmi sonuç yine de bildirildi
 
+    def test_stalled_scan_becomes_visible_instead_of_silent_freeze(self):
+        """
+        Bir sistem sorgusu yanıt vermezse pencere sonsuza kadar "taranıyor"
+        görünüyordu. Kullanıcı donmuş sanıyor; ne olduğu yazılmalı.
+        """
+        self.window._state = "scanning"
+        self.window._scan_started_at = 0.0
+        self.window._warn_if_scan_stalled()
+        self.assertEqual(self.window._subline.text(), T("tr", "scan_slow"))
+
+    def test_finished_scan_does_not_show_a_stall_warning(self):
+        self.window._state = "ready"
+        self.window._subline.setText("hazır")
+        self.window._warn_if_scan_stalled()
+        self.assertEqual(self.window._subline.text(), "hazır")
+
     def test_close_waits_for_background_scan_thread(self):
         thread = MagicMock()
         thread.isRunning.return_value = True

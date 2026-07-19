@@ -105,7 +105,12 @@
       ],
       "detect_type": "vcredist",
       "detect_value": "2012:x86",
-      "filename_hint": "vcredist_2012_x86.exe"
+      "filename_hint": "vcredist_2012_x86.exe",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": "Visual C++ Redistributables",
@@ -119,7 +124,12 @@
       ],
       "detect_type": "vcredist",
       "detect_value": "2012:x64",
-      "filename_hint": "vcredist_2012_x64.exe"
+      "filename_hint": "vcredist_2012_x64.exe",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": "Visual C++ Redistributables",
@@ -133,7 +143,12 @@
       ],
       "detect_type": "vcredist",
       "detect_value": "2013:x86",
-      "filename_hint": "vcredist_2013_x86.exe"
+      "filename_hint": "vcredist_2013_x86.exe",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": "Visual C++ Redistributables",
@@ -147,7 +162,12 @@
       ],
       "detect_type": "vcredist",
       "detect_value": "2013:x64",
-      "filename_hint": "vcredist_2013_x64.exe"
+      "filename_hint": "vcredist_2013_x64.exe",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": "Visual C++ Redistributables",
@@ -163,7 +183,12 @@
       ],
       "detect_type": "vcredist",
       "detect_value": "2015:x86",
-      "filename_hint": "vc_redist.x86.exe"
+      "filename_hint": "vc_redist.x86.exe",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": "Visual C++ Redistributables",
@@ -179,7 +204,12 @@
       ],
       "detect_type": "vcredist",
       "detect_value": "2015:x64",
-      "filename_hint": "vc_redist.x64.exe"
+      "filename_hint": "vc_redist.x64.exe",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": ".NET Desktop Runtime",
@@ -191,7 +221,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet_desktop",
-      "detect_value": "6.0:x86"
+      "detect_value": "6.0:x86",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": ".NET Desktop Runtime",
@@ -203,7 +238,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet_desktop",
-      "detect_value": "6.0:x64"
+      "detect_value": "6.0:x64",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": ".NET Desktop Runtime",
@@ -215,7 +255,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet_desktop",
-      "detect_value": "7.0:x86"
+      "detect_value": "7.0:x86",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": ".NET Desktop Runtime",
@@ -227,7 +272,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet_desktop",
-      "detect_value": "7.0:x64"
+      "detect_value": "7.0:x64",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": ".NET Desktop Runtime",
@@ -239,7 +289,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet_desktop",
-      "detect_value": "8.0:x86"
+      "detect_value": "8.0:x86",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": ".NET Desktop Runtime",
@@ -251,7 +306,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet_desktop",
-      "detect_value": "8.0:x64"
+      "detect_value": "8.0:x64",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": ".NET Desktop Runtime",
@@ -263,7 +323,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet_desktop",
-      "detect_value": "9.0:x86"
+      "detect_value": "9.0:x86",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": ".NET Desktop Runtime",
@@ -275,7 +340,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet_desktop",
-      "detect_value": "9.0:x64"
+      "detect_value": "9.0:x64",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": ".NET Desktop Runtime",
@@ -287,7 +357,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet_desktop",
-      "detect_value": "10.0:x86"
+      "detect_value": "10.0:x86",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": ".NET Desktop Runtime",
@@ -299,7 +374,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet_desktop",
-      "detect_value": "10.0:x64"
+      "detect_value": "10.0:x64",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": "DirectX & Media",
@@ -386,7 +466,12 @@
         "/norestart"
       ],
       "detect_type": "registry",
-      "detect_value": "HKLM\\SOFTWARE\\Microsoft\\VSTO Runtime Setup\\v4"
+      "detect_value": "HKLM\\SOFTWARE\\Microsoft\\VSTO Runtime Setup\\v4",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": "Microsoft Runtimes",
@@ -448,7 +533,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet",
-      "detect_value": "6.0"
+      "detect_value": "6.0",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": "Developer Tools",
@@ -460,7 +550,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet",
-      "detect_value": "8.0"
+      "detect_value": "8.0",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": "Developer Tools",
@@ -472,7 +567,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet",
-      "detect_value": "9.0"
+      "detect_value": "9.0",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": "Developer Tools",
@@ -484,7 +584,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet",
-      "detect_value": "10.0"
+      "detect_value": "10.0",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": ".NET Desktop Runtime",
@@ -496,7 +601,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet_desktop",
-      "detect_value": "6.0:x64:aspnet"
+      "detect_value": "6.0:x64:aspnet",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": ".NET Desktop Runtime",
@@ -508,7 +618,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet_desktop",
-      "detect_value": "8.0:x64:aspnet"
+      "detect_value": "8.0:x64:aspnet",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": ".NET Desktop Runtime",
@@ -520,7 +635,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet_desktop",
-      "detect_value": "9.0:x64:aspnet"
+      "detect_value": "9.0:x64:aspnet",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": ".NET Desktop Runtime",
@@ -532,7 +652,12 @@
         "/norestart"
       ],
       "detect_type": "dotnet_desktop",
-      "detect_value": "10.0:x64:aspnet"
+      "detect_value": "10.0:x64:aspnet",
+      "repair_args": [
+        "/repair",
+        "/quiet",
+        "/norestart"
+      ]
     },
     {
       "category": "Microsoft Runtimes",

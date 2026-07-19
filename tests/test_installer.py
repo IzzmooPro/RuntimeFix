@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "core"))
 
 from installer import (  # noqa: E402
+    REPAIR_FLAG,
     InstallError,
     InstallResult,
     _build_msi_command,
@@ -102,6 +103,55 @@ class InstallerTests(unittest.TestCase):
             result = _run_install_attempts("VC++", attempts)
         self.assertTrue(result.success)
         self.assertEqual(run.call_count, 2)
+
+    def test_repair_uses_publisher_repair_switch(self):
+        component = {
+            "name": "VC++ Redist 2015-2022 (x64)",
+            "silent_args": ["/install", "/quiet", "/norestart"],
+            "repair_args": ["/repair", "/quiet", "/norestart"],
+            REPAIR_FLAG: True,
+        }
+        with patch(
+            "installer._run_command",
+            return_value=InstallResult("VC++", 0, True),
+        ) as run:
+            install_component(component, "vc_redist.x64.exe")
+        self.assertEqual(
+            run.call_args.args[0], ["vc_redist.x64.exe", "/repair", "/quiet", "/norestart"]
+        )
+
+    def test_normal_install_ignores_repair_switch(self):
+        component = {
+            "name": "VC++",
+            "silent_args": ["/install", "/quiet", "/norestart"],
+            "repair_args": ["/repair", "/quiet", "/norestart"],
+        }
+        with patch(
+            "installer._run_command", return_value=InstallResult("VC++", 0, True)
+        ) as run:
+            install_component(component, "vc_redist.x64.exe")
+        self.assertIn("/install", run.call_args.args[0])
+
+    def test_msi_repair_uses_reinstall_mode(self):
+        """/i zaten kurulu üründe hiçbir şey yapmaz; onarım /fvomus ister."""
+        command = _build_msi_command("x.msi", ["/qn"], "log.txt", repair=True)
+        self.assertIn("/fvomus", command)
+        self.assertNotIn("/i", command)
+
+    def test_nothing_done_is_success_on_install_but_failure_on_repair(self):
+        """
+        1638 = "zaten kurulu, işlem yapılmadı". Kurulumda kabul edilebilir;
+        onarımda "onarıldı" demek kullanıcıyı yanıltır.
+        """
+        completed = SimpleNamespace(returncode=1638, stdout="", stderr="")
+        base = {"name": "XNA", "silent_args": ["/qn"]}
+        with patch("installer.subprocess.run", return_value=completed):
+            install_result = install_component(dict(base), "xna.msi")
+            repair_result = install_component({**base, REPAIR_FLAG: True}, "xna.msi")
+
+        self.assertTrue(install_result.success)
+        self.assertFalse(repair_result.success)
+        self.assertIn("hiçbir işlem yapmadan", repair_result.message)
 
     def test_dism_failure_is_not_reported_as_already_enabled(self):
         failure = InstallResult(".NET Framework 3.5", 1, False)

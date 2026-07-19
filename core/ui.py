@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMenu,
 )
 
+from installer import REPAIR_FLAG
 from worker import DownloadInstallWorker, WorkerSignals
 from security import SecurityManager
 from utils import (detect_windows_feature, feature_cache_is_stale,
@@ -1625,7 +1626,15 @@ class MainWindow(QWidget):
 
     # ── kurulum ─────────────────────────────────────────────────────────────
     def _start_install(self):
-        selected = [r.component for r in self._rows if r.is_selected]
+        # Zaten kurulu bir satır seçiliyse bu bir ONARIMDIR; kurulum motoru
+        # farklı argüman kullanmalı ve "zaten kurulu" yanıtını başarı saymamalı.
+        selected = []
+        for row in self._rows:
+            if not row.is_selected:
+                continue
+            component = dict(row.component)
+            component[REPAIR_FLAG] = row._state == ComponentRow.ST_INSTALLED
+            selected.append(component)
         if not selected:
             QMessageBox.information(
                 self, T(self._lang, "nothing_to_do_title"),

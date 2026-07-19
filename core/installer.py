@@ -34,6 +34,17 @@ RC_NO_RETRY = {
     1602,  # Kullanıcı kurulumu iptal etti
 }
 
+# "Hiçbir şey yapılmadı" anlamına gelen kodlar. Kurulumda kabul edilebilir,
+# onarımda başarısızlıktır.
+RC_NOTHING_DONE = {
+    1638,        # Bu ürünün başka bir sürümü zaten kurulu (MSI)
+    0x80070666,  # Aynı anlamın Burn/HRESULT karşılığı
+    -2147021722,  # 0x80070666'nın işaretli 32-bit okunuşu
+}
+
+# Bileşen sözlüğüne çalışma anında eklenen işaret: bu kurulum bir onarımdır
+REPAIR_FLAG = "_repair"
+
 
 class InstallError(Exception):
     pass
@@ -54,6 +65,7 @@ def install_component(component: dict, file_path: str) -> InstallResult:
     name = component.get("name", Path(file_path).name if file_path else "Unknown")
     ext = Path(file_path).suffix.lower() if file_path else ""
     install_type = component.get("install_type", "")
+    repair = bool(component.get(REPAIR_FLAG))
 
     # ZIP — 'zip_run' alanı varsa arşivi açıp içindeki installer'ı çalıştır
     # (örn. OpenAL → oalinst.zip içindeki oalinst.exe). Alan yoksa eski
@@ -91,12 +103,43 @@ def install_component(component: dict, file_path: str) -> InstallResult:
 
     if ext == ".msi":
         msi_log_path = _msi_log_path(file_path)
-        cmd = _build_msi_command(file_path, silent_args, msi_log_path)
+        cmd = _build_msi_command(file_path, silent_args, msi_log_path, repair=repair)
+    elif repair and component.get("repair_args"):
+        # Yayıncının onarım anahtarı (Burn tabanlı kurulumlarda /repair)
+        cmd = [file_path] + list(component["repair_args"])
     else:
         cmd = [file_path] + silent_args
 
-    logger.debug(f"Install command: {' '.join(str(c) for c in cmd)}")
-    return _run_command(cmd, name, msi_log_path)
+    logger.debug(
+        f"{'Repair' if repair else 'Install'} command: "
+        f"{' '.join(str(c) for c in cmd)}"
+    )
+    result = _run_command(cmd, name, msi_log_path)
+    return _adjust_for_repair(result, repair)
+
+
+def _adjust_for_repair(result: InstallResult, repair: bool) -> InstallResult:
+    """
+    Onarımda "zaten kurulu" bir başarı DEĞİLDİR.
+
+    Kurulumda 1638 ("bu ürünün başka bir sürümü zaten kurulu") makul bir
+    sonuçtur: hedef zaten sağlanmıştır. Onarımda ise aynı kod, kurulumun
+    hiçbir şey yapmadan çıktığı anlamına gelir — kullanıcıya "onarıldı"
+    demek yanlış olur.
+    """
+    if not repair or result.return_code not in RC_NOTHING_DONE:
+        return result
+    return InstallResult(
+        result.component_name,
+        result.return_code,
+        False,
+        message=(
+            "Onarım yapılamadı: kurulum dosyası bileşenin zaten kurulu "
+            "olduğunu bildirip hiçbir işlem yapmadan çıktı "
+            f"(kod {result.return_code})."
+        ),
+        log_path=result.log_path,
+    )
 
 
 def _install_vcredist_installshield(name: str, file_path: str) -> InstallResult:
@@ -344,8 +387,13 @@ def _install_dism_feature(name: str, feature: str) -> InstallResult:
 
 
 
-def _build_msi_command(file_path: str, silent_args: List[str], log_path: str) -> List[str]:
-    cmd = [_system32_executable("msiexec.exe"), "/i", file_path] + silent_args
+def _build_msi_command(file_path: str, silent_args: List[str], log_path: str,
+                       repair: bool = False) -> List[str]:
+    # /fvomus: dosyaları ve registry girdilerini sürüm farkına bakmadan yeniden
+    # yazar — MSI'ın gerçek onarım kipi. /i ise zaten kurulu üründe hiçbir şey
+    # yapmadan 1638 döner.
+    action = ["/fvomus", file_path] if repair else ["/i", file_path]
+    cmd = [_system32_executable("msiexec.exe")] + action + silent_args
     if "/norestart" not in cmd and "/forcerestart" not in cmd:
         cmd.append("/norestart")
     cmd.extend(["/L*v", log_path])

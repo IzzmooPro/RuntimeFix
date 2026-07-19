@@ -1,4 +1,4 @@
-# 🛠️ RuntimeFix v3.00
+# 🛠️ RuntimeFix v3.01
 
 <p align="center">
   <img src="assets/runtimefix-logo.png" width="128" alt="RuntimeFix logosu">
@@ -8,9 +8,9 @@
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?logo=windows)
 ![CI](https://github.com/IzzmooPro/RuntimeFix/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Components](https://img.shields.io/badge/Components-46-orange)
+![Components](https://img.shields.io/badge/Components-45-orange)
 
-**RuntimeFix v3.00**, sisteminizde eksik olan runtime bileşenlerini otomatik olarak tespit edip tek tıkla kuran modern bir araçtır. Oyun oynamadan önce veya bir uygulama çalıştırırken karşılaşılan "Visual C++ bulunamadı", ".NET Runtime eksik" gibi hata mesajlarına son verir.
+**RuntimeFix v3.01**, sisteminizde eksik olan runtime bileşenlerini otomatik olarak tespit edip tek tıkla kuran modern bir araçtır. Oyun oynamadan önce veya bir uygulama çalıştırırken karşılaşılan "Visual C++ bulunamadı", ".NET Runtime eksik" gibi hata mesajlarına son verir.
 
 ---
 
@@ -30,7 +30,7 @@
 
 ---
 
-## 📦 Desteklenen Bileşenler (46 adet)
+## 📦 Desteklenen Bileşenler (45 adet)
 
 <details>
 <summary><b>Visual C++ Redistributables (10 adet)</b></summary>
@@ -76,9 +76,8 @@
 </details>
 
 <details>
-<summary><b>Diğer Bileşenler (18 adet)</b></summary>
+<summary><b>Diğer Bileşenler (17 adet)</b></summary>
 
-- DirectX End-User Runtime Web Installer
 - DirectX Offline Redistributable (Jun 2010)
 - DirectPlay — Eski Oyun Desteği (Windows özelliği)
 - XNA Framework Redistributable 3.1

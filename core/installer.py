@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
+from utils import dism_feature_state, run_hidden
+
 logger = logging.getLogger("RuntimeFix.installer")
 
 RC_SUCCESS = 0
@@ -25,6 +27,11 @@ RC_EXTRA_SUCCESS = {
     1641,        # Başarılı, yeniden başlatma gerekiyor (MSI)
     0xE3826000,  # NVIDIA PhysX — zaten yüklü (3816972288)
     0xE3826001,  # NVIDIA PhysX — yeniden başlatma gerekli ama başarılı (3816972289)
+}
+
+# Farklı argümanlarla yeniden denemenin sonucu değiştirmeyeceği çıkış kodu
+RC_NO_RETRY = {
+    1602,  # Kullanıcı kurulumu iptal etti
 }
 
 
@@ -129,14 +136,24 @@ def _run_install_attempts(
         try:
             result = _run_command(cmd, name, "")
         except InstallError as exc:
-            logger.debug(f"{name} attempt failed: {exc}")
-            continue
+            # Süreç ya hiç başlamadı (eksik dosya, izin) ya da zamanında
+            # bitmedi. Bunların hiçbiri argüman biçimine bağlı değil; denemeye
+            # devam etmek çözmediği gibi her tur INSTALL_TIMEOUT kadar daha
+            # bekletebilir (5 deneme × 15 dk = 75 dk donmuş görünen kurulum).
+            logger.error(f"{name}: {exc} — argüman denemeleri durduruldu.")
+            raise
         if result.success:
             logger.info(f"{name} install OK with args {cmd[1:]}: "
                         f"rc={result.return_code}")
             return result
         last_result = result
-        if result.return_code == 1602:
+        if result.return_code in RC_NO_RETRY:
+            # Kullanıcı iptali (1602) ya da kurulumun kendisinin başarısız
+            # olması (1603) argüman biçiminden bağımsızdır; aynı installer'ı
+            # 4 kez daha, her biri 15 dakikaya kadar çalıştırmanın anlamı yok.
+            logger.info(
+                f"{name}: rc={result.return_code} — argüman denemeleri durduruldu."
+            )
             break
         logger.debug(
             f"{name} attempt {cmd[1:]} → rc={result.return_code}, "
@@ -247,18 +264,14 @@ def _install_directx_redist(name: str, file_path: str) -> InstallResult:
         return _run_command([dxsetup, "/silent"], name, "")
 
 
+def _run_hidden(cmd: List[str], timeout: int = INSTALL_TIMEOUT):
+    """Kurulum komutunu pencere göstermeden çalıştırır (InstallShield vb. için)."""
+    return run_hidden(cmd, timeout=timeout)
+
+
 def _run_command(cmd: List[str], name: str, log_path: str) -> InstallResult:
     try:
-        # Kurulum pencerelerini gizle — InstallShield ve diğer GUI'li installer'lar için
-        si = subprocess.STARTUPINFO()
-        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        si.wShowWindow = 0  # SW_HIDE
-        result = subprocess.run(
-            cmd, check=False, capture_output=True, text=True,
-            timeout=INSTALL_TIMEOUT,
-            startupinfo=si,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
+        result = _run_hidden(cmd)
     except subprocess.TimeoutExpired:
         raise InstallError(f"Timed out after {INSTALL_TIMEOUT}s: {name}")
     except FileNotFoundError as exc:
@@ -302,11 +315,33 @@ def _install_dism_feature(name: str, feature: str) -> InstallResult:
     ]
     logger.info(f"DISM: '{feature}' özelliği etkinleştiriliyor...")
     result = _run_command(cmd, name, "")
+    if result.success:
+        return result
 
-    # DISM başarı kodları: 0 = OK, 3010 = yeniden başlatma gerekli, 1 = zaten etkin (bazı sistemler)
-    if not result.success and result.return_code == 1:
-        return InstallResult(name, 1, True, message="Zaten etkin.")
-    return result
+    # DISM'de 1 "zaten etkin" DEĞİL, genel hata kodudur. Başarısız çıkışta
+    # özelliğin gerçek durumunu sorgula — yalnızca sahiden etkinse başarı say.
+    state = dism_feature_state(feature)
+    if state == "enabled":
+        logger.info(f"DISM: '{feature}' zaten etkin (rc={result.return_code}).")
+        return InstallResult(name, result.return_code, True, message="Zaten etkin.")
+    if state == "enable pending":
+        logger.info(f"DISM: '{feature}' etkinleştirildi, yeniden başlatma bekliyor.")
+        return InstallResult(
+            name, result.return_code, True, restart_required=True,
+            message="Installed – restart required to complete.",
+        )
+
+    logger.error(f"DISM: '{feature}' etkinleştirilemedi (rc={result.return_code}, durum={state or 'bilinmiyor'}).")
+    return InstallResult(
+        name, result.return_code, False,
+        message=(
+            f"{name} etkinleştirilemedi (kod {result.return_code}). "
+            "Bu özellik Windows Update üzerinden indirilir; Windows Update "
+            "kapalıysa veya kurumsal ilkeyle engellendiyse etkinleştirilemez."
+        ),
+    )
+
+
 
 
 def _build_msi_command(file_path: str, silent_args: List[str], log_path: str) -> List[str]:

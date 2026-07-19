@@ -10,6 +10,11 @@ htmlcov/
 downloads/
 logs/
 
+# Derleme çıktıları — setup dosyası ~30 MB, depoya asla girmemeli
+build/
+dist/
+installer/
+
 # Yedekler ve yerel örnek/karşılaştırma dosyaları
 *.bak
 Örnek/

@@ -4,6 +4,7 @@ utils.py - Utility / helper functions for RuntimeFix.
 """
 
 import os
+import re
 import sys
 import logging
 import logging.handlers
@@ -118,17 +119,39 @@ def sanitize_filename(name: str) -> str:
 # Install-detection helpers
 # --------------------------------------------------------------------------
 
-def _silent_subprocess(cmd, timeout=15):
-    """subprocess.run wrapper — pencere açmadan sessizce çalıştırır."""
-    si = subprocess.STARTUPINFO()
-    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    si.wShowWindow = 0  # SW_HIDE
+def powershell_executable() -> str:
+    """Windows PowerShell'in tam yolu (PATH'e güvenilmez)."""
+    system_root = os.environ.get("SystemRoot", r"C:\Windows")
+    return os.path.join(
+        system_root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"
+    )
+
+
+def run_hidden(cmd, timeout: int = 15, env=None):
+    """
+    Komutu konsol penceresi açmadan çalıştırır.
+
+    Tespit, kurulum ve imza doğrulamasının ortak alt katmanı — pencere gizleme
+    bayrakları tek yerde tutulur. Windows dışında bayraklar atlanır, böylece
+    modüller (ve testler) başka platformlarda da içe aktarılabilir.
+    """
+    kwargs = {}
+    if os.name == "nt":
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = 0  # SW_HIDE
+        kwargs = {
+            "startupinfo": si,
+            "creationflags": subprocess.CREATE_NO_WINDOW,
+        }
     return subprocess.run(
         cmd,
-        capture_output=True, text=True, timeout=timeout,
-        startupinfo=si,
-        creationflags=subprocess.CREATE_NO_WINDOW,
+        check=False, capture_output=True, text=True, timeout=timeout,
+        env=env,
+        **kwargs,
     )
+
+
 
 
 def detect_dotnet_sdk(version_prefix: str) -> bool:
@@ -137,7 +160,7 @@ def detect_dotnet_sdk(version_prefix: str) -> bool:
     *version_prefix* (e.g. "8.0").
     """
     try:
-        result = _silent_subprocess(["dotnet", "--list-sdks"])
+        result = run_hidden(["dotnet", "--list-sdks"])
         for line in result.stdout.splitlines():
             if line.startswith(version_prefix):
                 return True
@@ -202,10 +225,120 @@ def detect_webview2() -> bool:
 
 
 def detect_file_exists(file_path: str) -> bool:
-    """Return True if the given absolute file path exists on disk."""
-    exists = os.path.exists(file_path)
-    logger.debug(f"File detection: {file_path} → {'found' if exists else 'not found'}")
+    """Return True if the given file path exists on disk.
+
+    Yoldaki ortam değişkenleri (``%SystemRoot%``, ``%ProgramFiles(x86)%``)
+    genişletilir. Config'e sabit ``C:\\Windows`` yazmak, Windows'un başka bir
+    sürücüye kurulu olduğu sistemlerde bileşeni her zaman "eksik" gösteriyordu.
+    """
+    expanded = os.path.expandvars(file_path)
+    exists = os.path.exists(expanded)
+    logger.debug(f"File detection: {expanded} → {'found' if exists else 'not found'}")
     return exists
+
+
+DISM_STATE_TIMEOUT = 120
+# DISM'in "özellik açık" saydığı durumlar ("enable pending" = açık, yeniden
+# başlatma bekliyor). /English ile çıktı dilden bağımsız sabittir.
+DISM_ENABLED_STATES = ("enabled", "enable pending")
+
+
+def dism_feature_state(feature: str) -> str:
+    """
+    ``dism /online /get-featureinfo`` çıktısından Windows özelliğinin durumunu
+    okur. Dönüş: "enabled", "disabled", "enable pending" vb.; okunamazsa "".
+
+    NOT: DISM yönetici yetkisi ister. Program zaten yükseltilmiş çalışır;
+    yetkisiz bir ortamda sorgu boş döner ve özellik "kurulu değil" sayılır —
+    yani belirsizlik hiçbir zaman "kurulu" yönünde yorumlanmaz.
+    """
+    if not feature:
+        return ""
+    system_root = os.environ.get("SystemRoot", r"C:\Windows")
+    cmd = [
+        os.path.join(system_root, "System32", "dism.exe"),
+        "/online", "/get-featureinfo", f"/featurename:{feature}", "/English",
+    ]
+    try:
+        result = run_hidden(cmd, timeout=DISM_STATE_TIMEOUT)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        logger.debug(f"DISM durum sorgusu başarısız ({feature}): {exc}")
+        return ""
+
+    for line in (result.stdout or "").splitlines():
+        key, separator, value = line.partition(":")
+        if separator and key.strip().lower() == "state":
+            return value.strip().lower()
+    return ""
+
+
+# Win32_OptionalFeature.InstallState değerleri
+_WMI_INSTALL_STATES = {"1": "enabled", "2": "disabled", "3": "absent"}
+# Özellik adı WQL sorgusuna gireceği için biçimi önceden kısıtlanır
+_FEATURE_NAME_PATTERN = re.compile(r"[A-Za-z0-9._-]+")
+_WMI_FEATURE_ENV = "RUNTIMEFIX_FEATURE"
+_WMI_FEATURE_SCRIPT = (
+    "$ErrorActionPreference='Stop';"
+    "$f = Get-CimInstance -ClassName Win32_OptionalFeature "
+    f"-Filter (\"Name='\" + $env:{_WMI_FEATURE_ENV} + \"'\");"
+    "if ($f) { Write-Output ('STATE=' + $f.InstallState) }"
+)
+
+
+def wmi_feature_state(feature: str) -> str:
+    """
+    Windows özelliğinin durumunu WMI (``Win32_OptionalFeature``) üzerinden okur.
+
+    DISM'in aksine **yönetici yetkisi gerektirmez**, bu yüzden tespit için
+    tercih edilir. Dönüş: "enabled" / "disabled" / "absent"; okunamazsa "".
+    """
+    if os.name != "nt" or not _FEATURE_NAME_PATTERN.fullmatch(feature or ""):
+        return ""
+
+    environment = dict(os.environ)
+    environment[_WMI_FEATURE_ENV] = feature
+    command = [
+        powershell_executable(),
+        "-NoProfile", "-NonInteractive", "-Command", _WMI_FEATURE_SCRIPT,
+    ]
+    try:
+        result = run_hidden(command, timeout=60, env=environment)
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.debug(f"WMI özellik sorgusu başarısız ({feature}): {exc}")
+        return ""
+
+    for line in (result.stdout or "").splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key.strip() == "STATE":
+            return _WMI_INSTALL_STATES.get(value.strip(), "")
+    return ""
+
+
+def detect_windows_feature(feature: str) -> bool:
+    """
+    Windows özelliğinin açık olup olmadığını belirler.
+
+    Neden dosya varlığına bakılmıyor: ``dplayx.dll`` DirectPlay özelliği
+    kapalıyken de Windows'ta bulunur. Bu makinede ölçüldü — dosya var, özellik
+    ``InstallState=2`` (devre dışı). Dosya tabanlı tespit bileşeni hep "kurulu"
+    gösteriyordu.
+
+    Önce WMI denenir (yetki istemez); WMI yanıt vermezse DISM'e düşülür.
+    Hiçbiri okunamazsa "kurulu değil" denir — belirsizlik asla "kurulu"
+    yönünde yorumlanmaz.
+    """
+    state = wmi_feature_state(feature)
+    source = "WMI"
+    if not state:
+        state = dism_feature_state(feature)
+        source = "DISM"
+
+    installed = state in DISM_ENABLED_STATES
+    logger.debug(
+        f"Windows özelliği '{feature}': {source} durumu="
+        f"{state or 'okunamadı'} → {'kurulu' if installed else 'kurulu değil'}"
+    )
+    return installed
 
 
 def detect_msxml4() -> bool:
@@ -275,7 +408,7 @@ def detect_java(arch: str = "") -> bool:
     if arch:
         return False
     try:
-        result = _silent_subprocess(["java", "-version"], timeout=10)
+        result = run_hidden(["java", "-version"], timeout=10)
         if result.returncode == 0 or "version" in result.stderr.lower():
             logger.debug("Java detected via PATH")
             return True
@@ -294,7 +427,8 @@ def is_component_installed(component: dict) -> bool:
       registry  → Windows registry key check
       webview2  → WebView2 runtime registry check
       java      → Java registry + PATH check
-      file      → detect_value is an absolute file path
+      file      → detect_value is a file path (ortam değişkenleri genişletilir)
+      windows_feature → Windows özelliği WMI/DISM'e sorulur (detect_value = özellik adı)
       none      → always returns False (not installed)
     """
     detect_type  = component.get("detect_type", "none")
@@ -323,6 +457,8 @@ def is_component_installed(component: dict) -> bool:
         return detect_java(detect_value)
     if detect_type == "msxml4":
         return detect_msxml4()
+    if detect_type == "windows_feature":
+        return detect_windows_feature(detect_value)
     if detect_type == "file":
         return detect_file_exists(detect_value)
     if detect_type == "dotnet_framework":
@@ -506,7 +642,7 @@ def detect_dotnet_desktop(version_prefix: str, arch: str = "x64", flavor: str = 
         candidates = [dotnet_exe, "dotnet"]
     for exe in candidates:
         try:
-            result = _silent_subprocess([exe, "--list-runtimes"])
+            result = run_hidden([exe, "--list-runtimes"])
             for line in result.stdout.splitlines():
                 parts = line.strip().split()
                 if len(parts) >= 2 and runtime_name in parts[0] and parts[1].startswith(version_prefix):

@@ -11,12 +11,33 @@ Responsibilities:
 import hashlib
 import hmac
 import logging
+import os
 import re
+import subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 from typing import Optional, Sequence
 
+from utils import powershell_executable, run_hidden
+
 logger = logging.getLogger("RuntimeFix.security")
+
+# Authenticode doğrulaması — "evergreen" bileşenler için yedek denetim
+SIGNATURE_TIMEOUT = 60
+_SIGNATURE_PATH_ENV = "RUNTIMEFIX_VERIFY_PATH"
+# Dosya yolu komut satırına gömülmez, ortam değişkeniyle geçirilir:
+# tırnak/kaçış kaynaklı komut enjeksiyonu böyle tamamen dışarıda kalır.
+_SIGNATURE_SCRIPT = (
+    "$ErrorActionPreference='Stop';"
+    f"$s = Get-AuthenticodeSignature -LiteralPath $env:{_SIGNATURE_PATH_ENV};"
+    "Write-Output ('STATUS=' + $s.Status);"
+    "if ($s.SignerCertificate) "
+    "{ Write-Output ('SUBJECT=' + $s.SignerCertificate.Subject) }"
+)
+# X.500 subject'te CN değeri virgül içeriyorsa tırnaklanır:
+#   CN="Oracle America, Inc.", O="Oracle America, Inc.", ...
+#   CN=Microsoft Corporation, O=Microsoft Corporation, ...
+_CN_PATTERN = re.compile(r'CN=(?:"(?P<quoted>[^"]*)"|(?P<plain>[^,]*))')
 
 # Default whitelist – also loaded dynamically from data/config.json at startup
 DEFAULT_ALLOWED_DOMAINS: list[str] = [
@@ -37,6 +58,56 @@ DEFAULT_ALLOWED_DOMAINS: list[str] = [
 
 class SecurityError(Exception):
     """Raised when a security check fails."""
+
+
+def authenticode_signer(file_path: str) -> Optional[str]:
+    """
+    Dosyanın **geçerli** Authenticode imzasındaki yayıncı adını (CN) döndürür.
+
+    İmza yoksa, geçersizse (bozuk/süresi dolmuş/güvenilmeyen kök) veya durum
+    okunamazsa ``None`` döner — çağıran taraf bunu "doğrulanamadı" saymalıdır.
+    """
+    if os.name != "nt":
+        return None
+
+    environment = dict(os.environ)
+    environment[_SIGNATURE_PATH_ENV] = os.path.abspath(file_path)
+    command = [
+        powershell_executable(),
+        "-NoProfile", "-NonInteractive", "-Command", _SIGNATURE_SCRIPT,
+    ]
+    try:
+        result = run_hidden(
+            command, timeout=SIGNATURE_TIMEOUT, env=environment
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.warning(f"Authenticode doğrulaması çalıştırılamadı: {exc}")
+        return None
+
+    status = ""
+    subject = ""
+    for line in (result.stdout or "").splitlines():
+        key, separator, value = line.partition("=")
+        if not separator:
+            continue
+        if key == "STATUS":
+            status = value.strip()
+        elif key == "SUBJECT":
+            subject = value.strip()
+
+    if status.casefold() != "valid":
+        logger.warning(
+            f"{Path(file_path).name}: Authenticode durumu geçerli değil "
+            f"({status or 'okunamadı'})."
+        )
+        return None
+
+    match = _CN_PATTERN.search(subject)
+    if not match:
+        logger.warning(f"{Path(file_path).name}: imza sahibi (CN) okunamadı.")
+        return None
+    signer = (match.group("quoted") or match.group("plain") or "").strip()
+    return signer or None
 
 
 class SecurityManager:
@@ -96,6 +167,52 @@ class SecurityManager:
             )
 
         logger.debug(f"URL passed security validation: {url}")
+
+    def verify_download(self, file_path: str, component: dict) -> str:
+        """
+        İndirilen dosyayı doğrular; geçen denetimin adını döndürür.
+
+        Öncelik her zaman SHA-256'dır. ``evergreen`` işaretli bileşenlerin
+        URL'leri (aka.ms, fwlink, oracle /latest/) sürekli en yeni sürüme
+        işaret ettiği için yayıncı yeni sürüm yayınladığında hash *doğal
+        olarak* değişir; bu bir saldırı değildir ama hash'i körü körüne kabul
+        etmek de doğrulamayı tamamen ortadan kaldırır.
+
+        Bu durumda dosya, config'de belirtilen yayıncının **geçerli
+        Authenticode imzası** ile doğrulanır. İmza yoksa, geçersizse ya da
+        sertifikanın CN'i beklenen yayıncı değilse dosya reddedilir.
+
+        Dönüş: ``"sha256"`` veya ``"signature"``.
+        """
+        expected_publisher = str(component.get("publisher") or "").strip()
+        try:
+            self.verify_sha256(file_path, component.get("sha256", ""))
+            return "sha256"
+        except SecurityError as hash_error:
+            if not component.get("evergreen") or not expected_publisher:
+                raise
+
+            name = Path(file_path).name
+            signer = authenticode_signer(file_path)
+            if signer is None:
+                raise SecurityError(
+                    f"{name}: SHA-256 eşleşmedi ve dosyanın geçerli bir "
+                    f"Authenticode imzası yok. Dosya reddedildi."
+                ) from hash_error
+            if signer.casefold() != expected_publisher.casefold():
+                raise SecurityError(
+                    f"{name}: SHA-256 eşleşmedi ve imza beklenen yayıncıya "
+                    f"ait değil.\n  Beklenen : {expected_publisher}\n"
+                    f"  İmzalayan: {signer}"
+                ) from hash_error
+
+            logger.warning(
+                f"{name}: SHA-256 config'deki değerle eşleşmedi, ancak dosya "
+                f"{signer} tarafından geçerli biçimde imzalanmış — yayıncı "
+                f"büyük olasılıkla yeni sürüm yayınladı. İmza doğrulamasıyla "
+                f"kabul edildi."
+            )
+            return "signature"
 
     def verify_sha256(self, file_path: str, expected_hash: str) -> None:
         """

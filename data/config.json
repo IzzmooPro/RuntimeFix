@@ -154,6 +154,7 @@
       "name": "VC++ Redist 2015-2022 (x86)",
       "url": "https://aka.ms/vs/17/release/vc_redist.x86.exe",
       "evergreen": true,
+      "publisher": "Microsoft Corporation",
       "sha256": "0c09f2611660441084ce0df425c51c11e147e6447963c3690f97e0b25c55ed64",
       "silent_args": [
         "/install",
@@ -169,6 +170,7 @@
       "name": "VC++ Redist 2015-2022 (x64)",
       "url": "https://aka.ms/vs/17/release/vc_redist.x64.exe",
       "evergreen": true,
+      "publisher": "Microsoft Corporation",
       "sha256": "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b",
       "silent_args": [
         "/install",
@@ -301,23 +303,12 @@
     },
     {
       "category": "DirectX & Media",
-      "name": "DirectX End-User Runtime Web Installer",
-      "url": "https://download.microsoft.com/download/1/7/1/1718ccc4-6315-4d8e-9543-8e28a4e18c4c/dxwebsetup.exe",
-      "sha256": "2cf71d098c608c56e07f4655855a886c3102553f648df88458df616b26fd612f",
-      "silent_args": [
-        "/Q"
-      ],
-      "detect_type": "file",
-      "detect_value": "C:\\Windows\\System32\\D3DX9_43.dll"
-    },
-    {
-      "category": "DirectX & Media",
       "name": "DirectX Offline Redistributable (Jun 2010)",
       "url": "https://download.microsoft.com/download/8/4/A/84A35BF1-DAFE-4AE8-82AF-AD2AE20B6B14/directx_Jun2010_redist.exe",
       "sha256": "053f76dcbb28802e23341b6a787e3b0791c0fa5c8d4d011b1044172dbf89c73b",
       "silent_args": [],
       "detect_type": "file",
-      "detect_value": "C:\\Windows\\System32\\D3DX9_43.dll",
+      "detect_value": "%SystemRoot%\\System32\\D3DX9_43.dll",
       "install_type": "directx_redist"
     },
     {
@@ -356,7 +347,7 @@
         "/S"
       ],
       "detect_type": "file",
-      "detect_value": "C:\\Windows\\System32\\vulkan-1.dll"
+      "detect_value": "%SystemRoot%\\System32\\vulkan-1.dll"
     },
     {
       "category": "DirectX & Media",
@@ -376,6 +367,7 @@
       "url": "https://go.microsoft.com/fwlink/p/?LinkId=2124703",
       "filename_hint": "MicrosoftEdgeWebview2Setup.exe",
       "evergreen": true,
+      "publisher": "Microsoft Corporation",
       "sha256": "f91077e2c116dcf6377e555d0d4a3a564d242351ad6718b6954658d4f74819c1",
       "silent_args": [
         "/silent",
@@ -406,13 +398,14 @@
         "/v/qn"
       ],
       "detect_type": "file",
-      "detect_value": "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX"
+      "detect_value": "%ProgramFiles(x86)%\\NVIDIA Corporation\\PhysX"
     },
     {
       "category": "Microsoft Runtimes",
       "name": "Java SE Development Kit 21",
       "url": "https://download.oracle.com/java/21/latest/jdk-21_windows-x64_bin.exe",
       "evergreen": true,
+      "publisher": "Oracle America, Inc.",
       "sha256": "2d5a1fd908636d1659945885f8206bcfb72ab907055ed8bb90e18739e8ed73b8",
       "silent_args": [
         "/s"
@@ -572,8 +565,8 @@
       "install_type": "dism_feature",
       "dism_feature": "DirectPlay",
       "silent_args": [],
-      "detect_type": "file",
-      "detect_value": "C:\\Windows\\SysWOW64\\dplayx.dll",
+      "detect_type": "windows_feature",
+      "detect_value": "DirectPlay",
       "sha256": ""
     },
     {

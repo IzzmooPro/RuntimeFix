@@ -1,4 +1,5 @@
 import hashlib
+import re
 import sys
 import tempfile
 import unittest
@@ -9,6 +10,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "core"))
 
+from app_info import APP_VERSION  # noqa: E402
 from updater import (  # noqa: E402
     UpdateError,
     _digest_matches,
@@ -22,16 +24,30 @@ from updater import (  # noqa: E402
 
 class UpdaterTests(unittest.TestCase):
     def test_version_comparison(self):
-        self.assertTrue(is_newer_version("2.5", "2.4"))
-        self.assertTrue(is_newer_version("v2.3.1", "2.3"))
-        self.assertFalse(is_newer_version("2.3", "2.3.0"))
-        self.assertFalse(is_newer_version("2.2", "2.3"))
         self.assertTrue(is_newer_version("3.05", "3.00"))
         self.assertTrue(is_newer_version("3.10", "3.05"))
-        self.assertFalse(is_newer_version("3.5", "3.05"))
-        for invalid in ("3", "release-3.00", "3.00-beta", ""):
+        self.assertTrue(is_newer_version("v4.00", "3.95"))
+        self.assertFalse(is_newer_version("3.05", "3.10"))
+        self.assertFalse(is_newer_version("3.00", "3.00"))
+
+    def test_version_ordering_is_correct_past_the_ninth_release(self):
+        """Eski gevşek ayrıştırıcıda 3.9 ile 3.05 aynı değere çözülüyordu."""
+        self.assertTrue(is_newer_version("3.10", "3.09"))
+        self.assertTrue(is_newer_version("3.20", "3.15"))
+        self.assertFalse(is_newer_version("3.09", "3.10"))
+
+    def test_ambiguous_and_legacy_version_formats_are_rejected(self):
+        # "3.5" → "3.05" ile karışır; "3.0.0" → iki basamak kuralını bozar
+        for invalid in ("3.5", "3.0.0", "v2.3.1", "3", "release-3.00",
+                        "3.00-beta", ""):
             with self.subTest(invalid=invalid), self.assertRaises(UpdateError):
                 is_newer_version(invalid, "3.00")
+
+    def test_shipped_app_version_matches_the_documented_scheme(self):
+        """Yanlış biçimli bir APP_VERSION yayınlanırsa güncelleme zinciri kırılır."""
+        self.assertRegex(APP_VERSION, re.compile(r"^\d+\.\d{2}$"))
+        # Sürüm, updater'ın kendi ayrıştırıcısından da geçmeli
+        self.assertFalse(is_newer_version(APP_VERSION, APP_VERSION))
 
     def test_digest_is_required_and_must_be_sha256(self):
         payload = b"RuntimeFix updater test"

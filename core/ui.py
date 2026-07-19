@@ -80,8 +80,7 @@ COMPONENT_DESCRIPTIONS = {
     ".NET SDK 8.0":          ".NET 8 uygulamaları geliştirmek ve derlemek için SDK (LTS, geliştirici aracı).",
     ".NET SDK 9.0":          ".NET 9 uygulamaları geliştirmek ve derlemek için SDK (geliştirici aracı).",
     ".NET SDK 10.0":         ".NET 10 uygulamaları geliştirmek ve derlemek için SDK (LTS, geliştirici aracı).",
-    "DirectX End-User Runtime Web Installer": "Eski oyunların gerektirdiği D3DX9/D3DX10/D3DX11 bileşenlerini yükler.",
-    "DirectX Offline Redistributable": "İnternet bağlantısı olmadan DirectX eski bileşenlerini kurar (~100 MB).",
+    "DirectX Offline Redistributable": "Eski oyunların gerektirdiği D3DX9/D3DX10/D3DX11 ve XAudio bileşenlerini kurar (~100 MB, tamamı doğrulanmış paket).",
     "XNA Framework Redistributable 4.0": "Microsoft XNA oyun motoru ile geliştirilmiş oyunlar için çalışma zamanı.",
     "XNA Framework Redistributable 3.1": "Eski XNA oyunları (Terraria ilk sürümleri, Magicka vb.) için gerekli 3.1 çalışma zamanı.",
     "Vulkan Runtime":        "Modern oyunların kullandığı Vulkan grafik API çalışma zamanı.",
@@ -116,7 +115,7 @@ COMPONENT_SIZES = {
     ".NET Desktop Runtime 10.0": 57,
     "ASP.NET Core Runtime 6.0": 10, "ASP.NET Core Runtime 8.0": 10,
     "ASP.NET Core Runtime 9.0": 10, "ASP.NET Core Runtime 10.0": 11,
-    "DirectX End-User": 1, "DirectX Offline": 100,
+    "DirectX Offline": 100,
     "XNA Framework": 8, "OpenAL": 1,
     "WebView2": 2, "VS 2010 Tools": 38,
     "MSXML": 3, "NVIDIA PhysX": 30, "Java SE": 160,
@@ -827,11 +826,21 @@ class ScanWorker(QObject):
         super().__init__()
         self.components = components
         self.signals = ScanSignals()
+        self._cancelled = False
+
+    def cancel(self):
+        """Taramayı ilk fırsatta durdurur (pencere kapatılırken kullanılır)."""
+        self._cancelled = True
 
     def run(self):
         log = logging.getLogger("RuntimeFix")
         results = []
         for c in self.components:
+            # Tarama salt okunur; yarıda kesmek hiçbir şeyi bozmaz. Kullanıcı
+            # kapatmak istediğinde 45 bileşenin bitmesini beklemesi gerekmez.
+            if self._cancelled:
+                log.info("[TARAMA] İptal edildi — pencere kapatılıyor.")
+                break
             installed = is_component_installed(c)
             log.info(f"  [{'OK  ' if installed else 'MISS'}] {c.get('name', '?')}")
             results.append((c, installed))
@@ -890,9 +899,9 @@ class MainWindow(QWidget):
         self._apply_lang()
         # Açılışta otomatik tarama — kullanıcı ilk bakışta durumu görür
         QTimer.singleShot(400, self._do_scan)
-        # Pencereyi bekletmeden güncellemeyi arka planda denetle. Yalnızca yeni
-        # sürüm varsa tek onay gösterilir; güncel/offline durum sessiz kalır.
-        QTimer.singleShot(250, lambda: self._check_updates("startup"))
+        # Pencereyi bekletmeden güncellemeyi arka planda denetle. Yeni sürüm
+        # varsa üstte şerit belirir; güncel/offline durum sessiz kalır.
+        QTimer.singleShot(250, lambda: self._check_updates("silent"))
 
     # ── kurulum ──────────────────────────────────────────────────────────────
     def _build_ui(self):
@@ -1222,7 +1231,7 @@ class MainWindow(QWidget):
 
     # ── güncelleme denetimi ─────────────────────────────────────────────────
     def _check_updates(self, mode: str = "silent"):
-        if mode not in {"silent", "startup", "manual"}:
+        if mode not in {"silent", "manual"}:
             raise ValueError(f"Geçersiz güncelleme denetim modu: {mode}")
         if self._upd_thread and self._upd_thread.isRunning():
             if mode == "manual":
@@ -1258,7 +1267,11 @@ class MainWindow(QWidget):
             )
             self._refresh_update_bar()
             self._update_bar.setVisible(True)
-            if mode in {"startup", "manual"}:
+            # Açılışta diyalog açılmaz: kullanıcı programı yeni açmışken önüne
+            # soru penceresi çıkmasın. Yeni sürüm üstteki şeritte durur, kararı
+            # kullanıcı verir. Yalnızca "Güncellemeleri denetle"ye basıldığında
+            # (manual) doğrudan güncelleme akışı başlar.
+            if mode == "manual":
                 self._begin_update()
         elif mode == "manual":
             QMessageBox.information(
@@ -1558,10 +1571,14 @@ class MainWindow(QWidget):
     def _on_component_success(self, name: str):
         logger.info(f"[KURULUM] BAŞARILI: {name}")
         self._installed_names.append(name)
-        self._ok_count += 1
-        self._miss_count = max(0, self._miss_count - 1)
         for row in self._rows:
             if row.component.get("name", "").strip() == name.strip():
+                # Onarım modunda zaten kurulu bir satır yeniden kuruluyor
+                # olabilir; sayaçlar yalnızca gerçekten eksik olan satırlarda
+                # değişmeli, yoksa "kurulu" sayısı toplam bileşen sayısını aşar.
+                if row.is_missing:
+                    self._ok_count += 1
+                    self._miss_count = max(0, self._miss_count - 1)
                 row.mark_installed()
                 # Satırı anında YÜKLÜ bölümünün en üstüne taşı — yeşil
                 # "kuruldu" haliyle görünür kalır, EKSİK listesi küçülür.
@@ -1674,7 +1691,17 @@ class MainWindow(QWidget):
 
         if self._upd_downloader:
             self._upd_downloader.cancel()
+        # Tarama salt okunur — bekletmeye gerek yok, ilk fırsatta durdur.
+        if self._scan_worker:
+            self._scan_worker.cancel()
+
         self._close_pending = True
+        # Kullanıcı X'e bastıktan sonra pencere arka plan işleri bitene kadar
+        # açık kalıyor. Geri bildirim olmadan bu, donmuş bir pencere gibi
+        # görünüyordu; ne olduğunu yaz.
+        self._headline.setText(T(self._lang, "closing"))
+        self._subline.setText("")
+        self._ring.set_busy()
         self.setEnabled(False)
         event.ignore()
 

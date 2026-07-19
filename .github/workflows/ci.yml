@@ -12,24 +12,44 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
 
+    strategy:
+      fail-fast: false
+      matrix:
+        # Alt sınır: README'de belirtilen en düşük sürüm.
+        # Üst sınır: geliştirmede kullanılan güncel sürüm.
+        python-version: ["3.11", "3.14"]
+
     steps:
       - name: Kaynak kodu al
         uses: actions/checkout@v6
 
-      - name: Python 3.11 kur
+      - name: Python ${{ matrix.python-version }} kur
         uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
           cache: pip
 
       - name: Bağımlılıkları kur
         run: python -m pip install --disable-pip-version-check -r requirements.txt ruff==0.15.22
 
       - name: Statik kod denetimini çalıştır
-        run: ruff check main.py core tests
+        run: ruff check main.py core tests .github/scripts
 
       - name: Python sözdizimini denetle
-        run: python -m compileall -q main.py core tests
+        run: python -m compileall -q main.py core tests .github/scripts
 
       - name: Otomatik testleri çalıştır
         run: python -m unittest discover -s tests -v
+
+      # Setup dosyası ~30 MB; yanlışlıkla commit'lenirse depo kalıcı olarak şişer
+      - name: Büyük dosya commit'lenmediğini doğrula
+        shell: bash
+        run: |
+          limit=$((5 * 1024 * 1024))
+          oversized=$(git ls-files -z | xargs -0 -I{} find {} -size +${limit}c -print)
+          if [ -n "$oversized" ]; then
+            echo "5 MB üstü izlenen dosya bulundu:"
+            echo "$oversized" | xargs -I{} ls -lh {}
+            exit 1
+          fi
+          echo "İzlenen dosyaların tamamı 5 MB altında."

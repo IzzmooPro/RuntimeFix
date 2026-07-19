@@ -1,0 +1,40 @@
+name: Config sapma denetimi
+
+# Bileşen adresleri ve hash'leri zamanla bozulur (Microsoft dosya taşır, Oracle
+# BundleId değiştirir, "evergreen" adresler yeni sürüme geçer). Bu denetim
+# olmadan bozulma ancak son kullanıcı kurulum denerken ortaya çıkıyor.
+
+on:
+  schedule:
+    # Her pazartesi 06:00 UTC
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      hash_mode:
+        description: "Hangi bileşenlerin dosyası indirilip hash'i doğrulansın"
+        type: choice
+        default: evergreen
+        options: [none, evergreen, all]
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Kaynak kodu al
+        uses: actions/checkout@v6
+
+      - name: Python 3.11 kur
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      # Betik yalnızca standart kütüphane kullanır — bağımlılık kurulmaz.
+      - name: Adresleri ve hash'leri denetle
+        run: >
+          python .github/scripts/check_config_drift.py
+          --hash ${{ github.event.inputs.hash_mode || 'evergreen' }}

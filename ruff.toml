@@ -1,0 +1,20 @@
+# RuntimeFix statik kod denetimi yapılandırması.
+#
+# Kural seti burada sabitlenir: CI ile yerel çalıştırma aynı sonucu verir ve
+# ruff sürümü varsayılanlarını değiştirdiğinde CI beklenmedik yerde kırılmaz.
+#
+# Şu an ruff'ın varsayılan kuralları (E4/E7/E9 + F) uygulanır — depo bu setle
+# temizdir. Daha sıkı setler (I: import sırası, B: bugbear, UP: modern yazım)
+# bilinçli birer temizlik turu gerektirdiği için henüz açılmadı.
+
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["E4", "E7", "E9", "F"]
+
+[lint.per-file-ignores]
+# core/ modülleri düz import ile yüklenir (main.py sys.path'e core/ ekler);
+# testler de aynı düzeni kullandığı için import'lar dosya başında olamıyor.
+"tests/*" = ["E402"]
+"main.py" = ["E402"]

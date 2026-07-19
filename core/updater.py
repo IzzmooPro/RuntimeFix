@@ -26,15 +26,26 @@ _TRUSTED_UPDATE_HOSTS = {
 }
 
 
-def _version_parts(value: str) -> tuple[int, int, int]:
-    match = re.fullmatch(
-        r"v?(\d+)\.(\d+)(?:\.(\d+))?",
-        (value or "").strip(),
-        flags=re.IGNORECASE,
-    )
+# RuntimeFix sürüm biçimi: MAJOR.MM — minor DAİMA iki basamak (3.00, 3.05, 3.10).
+VERSION_PATTERN = re.compile(r"v?(\d+)\.(\d{2})", re.IGNORECASE)
+VERSION_FORMAT_HINT = "beklenen biçim: 3.00, 3.05, 3.10"
+
+
+def _version_parts(value: str) -> tuple[int, int]:
+    """
+    Sürüm dizesini karşılaştırılabilir sayılara çevirir.
+
+    Tek basamaklı minor ("3.5") ve üç parçalı biçim ("3.0.0") bilerek
+    reddedilir: "3.5" ile "3.05" aynı değere çözülüyor ve "3.9 > 3.10"
+    gibi yanlış sıralama üretiyordu. Biçim hatası artık sessiz yanlış
+    karşılaştırma yerine açık bir hata veriyor.
+    """
+    match = VERSION_PATTERN.fullmatch((value or "").strip())
     if not match:
-        raise UpdateError(f"Geçersiz sürüm biçimi: {value!r}")
-    return tuple(int(part or 0) for part in match.groups())
+        raise UpdateError(
+            f"Geçersiz sürüm biçimi: {value!r} ({VERSION_FORMAT_HINT})"
+        )
+    return int(match.group(1)), int(match.group(2))
 
 
 def is_newer_version(latest: str, current: str) -> bool:

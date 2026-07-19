@@ -137,9 +137,9 @@ class DownloadInstallWorker(QObject):
                     )
                     continue
 
-                # SHA-256 verification
+                # Bütünlük doğrulaması (SHA-256, evergreen'de imza yedeğiyle)
                 try:
-                    self.security.verify_sha256(file_path, comp.get("sha256", ""))
+                    self.security.verify_download(file_path, comp)
                 except SecurityError as exc:
                     self._emit_error(name, self._sha_mismatch_message(comp, name, exc))
                     self._remove_file(file_path)
@@ -170,7 +170,7 @@ class DownloadInstallWorker(QObject):
                 # kurulan dosya durumunu engeller).
                 if path:
                     try:
-                        self.security.verify_sha256(path, comp.get("sha256", ""))
+                        self.security.verify_download(path, comp)
                     except SecurityError as exc:
                         self._emit_error(name, self._sha_mismatch_message(comp, name, exc))
                         self._remove_file(path)
@@ -226,12 +226,19 @@ class DownloadInstallWorker(QObject):
 
     @staticmethod
     def _sha_mismatch_message(comp: dict, name: str, exc: Exception) -> str:
-        """SHA-256 uyuşmazlığı için kullanıcı dostu mesaj üretir.
+        """Bütünlük denetimi başarısız olduğunda kullanıcı dostu mesaj üretir.
 
-        'evergreen' işaretli bileşenlerin URL'leri (aka.ms, fwlink, oracle
-        /latest/) sürekli en yeni sürüme işaret eder; yayıncı yeni sürüm
-        çıkardığında hash doğal olarak değişir — bu bir saldırı değildir.
+        'evergreen' bileşenlerde hash uyuşmazlığı tek başına hata değildir;
+        böyle bir dosya yayıncı imzasıyla da doğrulanamadıysa buraya düşer —
+        yani gerçekten güvenilmez bir dosyadır.
         """
+        if comp.get("evergreen") and comp.get("publisher"):
+            return (
+                f"The file for {name} could not be verified: its checksum "
+                f"differs from the recorded one AND it is not validly signed "
+                f"by {comp['publisher']}. The file was removed as a "
+                f"precaution.\n\nDetails: {exc}"
+            )
         if comp.get("evergreen"):
             return (
                 f"The file for {name} doesn't match the expected checksum. "

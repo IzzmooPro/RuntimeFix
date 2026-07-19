@@ -50,6 +50,7 @@ class ConfigTests(unittest.TestCase):
             "java",
             "msxml4",
             "file",
+            "windows_feature",
             "dotnet_framework",
             "dotnet_framework35",
             "jdk",
@@ -69,6 +70,72 @@ class ConfigTests(unittest.TestCase):
                     self.assertTrue(component.get("dism_feature"))
                     self.assertFalse(component.get("url"))
         self.assertEqual(len(filename_hints), len(set(filename_hints)))
+
+    def test_each_component_has_a_distinct_detection_target(self):
+        """İki bileşen aynı tespit hedefini paylaşırsa biri kurulunca diğeri de
+        yanlışlıkla 'kurulu' görünür (eski iki DirectX girdisinde olduğu gibi)."""
+        targets = {}
+        for component in self.config["components"]:
+            key = (component["detect_type"], component["detect_value"])
+            targets.setdefault(key, []).append(component["name"])
+        collisions = {
+            key: names for key, names in targets.items() if len(names) > 1
+        }
+        self.assertEqual(collisions, {})
+
+    def test_file_detection_paths_are_environment_relative(self):
+        """Sabit C:\\Windows yolları, Windows başka sürücüdeyse hep 'eksik' der."""
+        for component in self.config["components"]:
+            if component["detect_type"] != "file":
+                continue
+            with self.subTest(component=component["name"]):
+                self.assertTrue(
+                    component["detect_value"].startswith("%"),
+                    "detect_value ortam değişkeniyle başlamalı",
+                )
+
+    def test_dism_components_are_detected_through_dism(self):
+        """
+        DISM ile kurulan bileşen DISM'e sorularak tespit edilmeli. Dosya
+        varlığına bakmak yanıltıcı: dplayx.dll, DirectPlay özelliği kapalıyken
+        de Windows'ta bulunur ve bileşen hep "kurulu" görünürdü.
+
+        Tek istisna .NET Framework 3.5: registry'deki Install değeri hem
+        yetkisiz okunabilir hem de kesin sonuç verir.
+        """
+        for component in self.config["components"]:
+            if component.get("install_type") != "dism_feature":
+                continue
+            with self.subTest(component=component["name"]):
+                self.assertIn(
+                    component["detect_type"],
+                    {"windows_feature", "dotnet_framework35"},
+                )
+                if component["detect_type"] == "windows_feature":
+                    # Tespit ve kurulum aynı özellik adını kullanmalı
+                    self.assertEqual(
+                        component["detect_value"], component["dism_feature"]
+                    )
+
+    def test_publisher_is_only_meaningful_on_evergreen_components(self):
+        """Sabit URL'li bileşende publisher alanı hiçbir zaman kullanılmaz."""
+        for component in self.config["components"]:
+            if component.get("publisher"):
+                with self.subTest(component=component["name"]):
+                    self.assertTrue(component.get("evergreen"))
+
+    def test_evergreen_components_without_publisher_are_declared(self):
+        """
+        Yayıncısı tanımlı olmayan evergreen bileşen, sürüm değişince kurulamaz
+        hale gelir. Yeni bir evergreen bileşen eklendiğinde bu testin kırılması
+        beklenir: yayıncı CN'i ölçülüp eklenmeli ya da bilerek listeye alınmalı.
+        """
+        unverifiable = {
+            component["name"]
+            for component in self.config["components"]
+            if component.get("evergreen") and not component.get("publisher")
+        }
+        self.assertEqual(unverifiable, {"Vulkan Runtime"})
 
     def test_java_detection_distinguishes_architecture(self):
         java = {

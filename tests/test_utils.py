@@ -1,7 +1,9 @@
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -11,8 +13,11 @@ sys.path.insert(0, str(ROOT / "core"))
 from utils import (  # noqa: E402
     detect_file_exists,
     detect_java,
+    detect_windows_feature,
+    dism_feature_state,
     is_component_installed,
     sanitize_filename,
+    wmi_feature_state,
 )
 
 
@@ -25,6 +30,17 @@ class UtilsTests(unittest.TestCase):
         with tempfile.NamedTemporaryFile(dir=ROOT) as file:
             self.assertTrue(detect_file_exists(file.name))
         self.assertFalse(detect_file_exists(str(ROOT / "missing.file")))
+
+    def test_file_detection_expands_environment_variables(self):
+        with tempfile.NamedTemporaryFile(dir=ROOT) as file:
+            name = Path(file.name).name
+            with patch.dict(os.environ, {"RUNTIMEFIX_TEST_ROOT": str(ROOT)}):
+                self.assertTrue(
+                    detect_file_exists(f"%RUNTIMEFIX_TEST_ROOT%\\{name}")
+                )
+                self.assertFalse(
+                    detect_file_exists("%RUNTIMEFIX_TEST_ROOT%\\missing.file")
+                )
 
     def test_java_rejects_unknown_architecture(self):
         self.assertFalse(detect_java("arm64"))
@@ -44,6 +60,12 @@ class UtilsTests(unittest.TestCase):
             ("file", "C:\\example.dll", "detect_file_exists", ("C:\\example.dll",)),
             ("dotnet_framework", "533320", "detect_dotnet_framework", (533320,)),
             ("jdk", "21", "detect_jdk_version", ("21",)),
+            (
+                "windows_feature",
+                "DirectPlay",
+                "detect_windows_feature",
+                ("DirectPlay",),
+            ),
         ]
         for detect_type, value, target, expected_args in cases:
             with (
@@ -59,6 +81,84 @@ class UtilsTests(unittest.TestCase):
                     )
                 )
                 detector.assert_called_once_with(*expected_args)
+
+    def test_dism_feature_state_is_parsed_from_real_output_format(self):
+        completed = SimpleNamespace(
+            returncode=0,
+            stdout=(
+                "Feature Name : DirectPlay\r\n"
+                "Display Name : DirectPlay\r\n"
+                "State : Enable Pending\r\n"
+            ),
+            stderr="",
+        )
+        with patch("utils.run_hidden", return_value=completed) as run:
+            self.assertEqual(dism_feature_state("DirectPlay"), "enable pending")
+        command = run.call_args.args[0]
+        self.assertIn("/get-featureinfo", command)
+        self.assertIn("/English", command)  # çıktı dili sabitlenmeli
+
+    def test_wmi_install_states_are_mapped(self):
+        # Win32_OptionalFeature.InstallState: 1=etkin, 2=devre dışı, 3=yok
+        for value, expected in (("1", "enabled"), ("2", "disabled"), ("3", "absent")):
+            completed = SimpleNamespace(
+                returncode=0, stdout=f"STATE={value}\r\n", stderr=""
+            )
+            with self.subTest(value=value), patch(
+                "utils.run_hidden", return_value=completed
+            ):
+                self.assertEqual(wmi_feature_state("DirectPlay"), expected)
+
+    def test_feature_detection_maps_states_to_installed(self):
+        cases = {"1": True, "2": False, "3": False}
+        for value, expected in cases.items():
+            completed = SimpleNamespace(
+                returncode=0, stdout=f"STATE={value}\r\n", stderr=""
+            )
+            with self.subTest(value=value), patch(
+                "utils.run_hidden", return_value=completed
+            ):
+                self.assertIs(detect_windows_feature("DirectPlay"), expected)
+
+    def test_dism_is_used_when_wmi_cannot_answer(self):
+        """WMI yanıt vermezse DISM'e düşülmeli (yükseltilmiş ortam)."""
+        with (
+            patch("utils.wmi_feature_state", return_value=""),
+            patch("utils.dism_feature_state", return_value="enable pending") as dism,
+        ):
+            self.assertTrue(detect_windows_feature("DirectPlay"))
+        dism.assert_called_once_with("DirectPlay")
+
+    def test_unreadable_state_is_never_assumed_installed(self):
+        """Sorgulanamayan özellik 'kurulu' sayılmamalı."""
+        with (
+            patch("utils.wmi_feature_state", return_value=""),
+            patch("utils.dism_feature_state", return_value=""),
+        ):
+            self.assertFalse(detect_windows_feature("DirectPlay"))
+
+    def test_malformed_feature_name_is_rejected_before_querying(self):
+        """Özellik adı WQL sorgusuna girer; tırnak içeren ad hiç çalıştırılmamalı."""
+        with patch("utils.run_hidden") as run:
+            self.assertEqual(wmi_feature_state("DirectPlay' OR '1'='1"), "")
+        run.assert_not_called()
+
+    @unittest.skipUnless(os.name == "nt", "Windows özellikleri yalnızca Windows'ta")
+    def test_real_feature_states_match_the_system(self):
+        """
+        Taklit değil: gerçek Windows'a sorulur ve bağımsız bir kaynakla
+        karşılaştırılır. NetFx3'ün durumu registry tespitiyle aynı çıkmalı.
+        """
+        from utils import detect_dotnet_framework35
+
+        netfx_state = wmi_feature_state("NetFx3")
+        if not netfx_state:
+            self.skipTest("WMI özellik sorgusu bu ortamda yanıt vermiyor")
+        self.assertEqual(
+            detect_windows_feature("NetFx3"), detect_dotnet_framework35()
+        )
+        # Var olmayan özellik "kurulu" görünmemeli
+        self.assertFalse(detect_windows_feature("BoyleBirOzellikYok"))
 
     def test_unknown_detection_type_is_not_assumed_installed(self):
         self.assertFalse(

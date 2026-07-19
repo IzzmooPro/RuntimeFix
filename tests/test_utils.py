@@ -16,6 +16,8 @@ from utils import (  # noqa: E402
     detect_windows_feature,
     dism_feature_state,
     is_component_installed,
+    powershell_executable,
+    run_hidden,
     sanitize_filename,
     wmi_feature_state,
 )
@@ -159,6 +161,21 @@ class UtilsTests(unittest.TestCase):
         )
         # Var olmayan özellik "kurulu" görünmemeli
         self.assertFalse(detect_windows_feature("BoyleBirOzellikYok"))
+
+    @unittest.skipUnless(os.name == "nt", "PowerShell yalnızca Windows'ta")
+    def test_powershell_helper_is_actually_runnable(self):
+        """
+        Hem özellik tespiti hem imza doğrulaması PowerShell'e dayanıyor.
+        Bu test olmadan, PowerShell bulunamadığında ilgili canlı testler
+        sessizce "atlandı" görünür ve gerçek arıza fark edilmez.
+        """
+        executable = powershell_executable()
+        self.assertTrue(os.path.isfile(executable), f"bulunamadı: {executable}")
+        result = run_hidden(
+            [executable, "-NoProfile", "-NonInteractive", "-Command", "Write-Output OK"],
+            timeout=60,
+        )
+        self.assertEqual((result.stdout or "").strip(), "OK")
 
     def test_unknown_detection_type_is_not_assumed_installed(self):
         self.assertFalse(

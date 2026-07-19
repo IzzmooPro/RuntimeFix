@@ -20,6 +20,7 @@ from downloader import (
 )
 from installer import install_component, InstallError, InstallResult
 from security import SecurityManager, SecurityError
+from utils import remember_feature_state
 
 logger = logging.getLogger("RuntimeFix.worker")
 
@@ -197,6 +198,9 @@ class DownloadInstallWorker(QObject):
                         or f"{name} cannot be installed automatically.",
                     )
                 elif result.success:
+                    if comp.get("install_type") == "dism_feature":
+                        # Durum kesin biliniyor; yeniden sorgulamaya gerek yok
+                        remember_feature_state(comp.get("dism_feature", ""), True)
                     if result.restart_required:
                         self._restart_needed = True
                     self.signals.status.emit(f"{name} installed successfully.")

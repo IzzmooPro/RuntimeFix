@@ -1,7 +1,9 @@
+import json
 import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -67,9 +69,10 @@ class UtilsTests(unittest.TestCase):
             ("dotnet_framework", "533320", "detect_dotnet_framework", (533320,)),
             ("jdk", "21", "detect_jdk_version", ("21",)),
             (
+                # Tarama yolu ÖNBELLEKTEN okur — alt süreç açan sorgu değil
                 "windows_feature",
                 "DirectPlay",
-                "detect_windows_feature",
+                "detect_windows_feature_cached",
                 ("DirectPlay",),
             ),
         ]
@@ -238,6 +241,68 @@ class UtilsTests(unittest.TestCase):
         self.assertEqual(
             run.call_args.kwargs.get("stdin"), subprocess.DEVNULL
         )
+
+    def test_full_config_scan_never_spawns_a_subprocess(self):
+        """
+        Kurulu sürümdeki donmanın ortak paydası buydu: tarama sırasında alt
+        süreç açmak. Gerçek config'in tamamı taranırken tek bir alt süreç bile
+        açılmamalı; Windows özelliği sorgusu arka plana taşındı.
+        """
+        config = json.loads(
+            (ROOT / "data" / "config.json").read_text(encoding="utf-8")
+        )
+        with patch("utils.run_hidden") as run:
+            for component in config["components"]:
+                is_component_installed(component)
+        run.assert_not_called()
+
+    def test_feature_cache_round_trip(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            with patch.dict(os.environ, {"LOCALAPPDATA": directory}):
+                self.assertFalse(utils.detect_windows_feature_cached("DirectPlay"))
+                utils.write_feature_cache({"DirectPlay": True})
+                self.assertTrue(utils.detect_windows_feature_cached("DirectPlay"))
+                self.assertFalse(utils.detect_windows_feature_cached("Bilinmeyen"))
+
+    def test_unreadable_cache_reports_not_installed(self):
+        """Bozuk önbellek 'kurulu' sayılmamalı."""
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            with patch.dict(os.environ, {"LOCALAPPDATA": directory}):
+                path = Path(utils._feature_cache_path())
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("{bozuk", encoding="utf-8")
+                self.assertEqual(utils.read_feature_cache(), {})
+                self.assertFalse(utils.detect_windows_feature_cached("DirectPlay"))
+
+    def test_fresh_cache_prevents_repeated_background_queries(self):
+        """
+        Taze kayıt varken arka plan sorgusu da çalışmamalı: her açılışta alt
+        süreç açmak, donmanın kaynağıydı.
+        """
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            with patch.dict(os.environ, {"LOCALAPPDATA": directory}):
+                features = ["DirectPlay"]
+                self.assertTrue(utils.feature_cache_is_stale(features))  # ilk açılış
+
+                utils.write_feature_cache({"DirectPlay": True})
+                self.assertFalse(utils.feature_cache_is_stale(features))
+
+                # Bilinmeyen bir özellik eklenirse yeniden sorgulanmalı
+                self.assertTrue(utils.feature_cache_is_stale(["DirectPlay", "NetFx3"]))
+
+                # Kayıt eskiyince yeniden sorgulanmalı
+                stale = utils.read_feature_cache()
+                stale["_checked_at"] = time.time() - utils.FEATURE_CACHE_TTL_SECONDS - 1
+                Path(utils._feature_cache_path()).write_text(
+                    json.dumps(stale), encoding="utf-8"
+                )
+                self.assertTrue(utils.feature_cache_is_stale(features))
+
+    def test_successful_install_records_feature_state(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            with patch.dict(os.environ, {"LOCALAPPDATA": directory}):
+                utils.remember_feature_state("DirectPlay", True)
+                self.assertTrue(utils.detect_windows_feature_cached("DirectPlay"))
 
     def test_unknown_detection_type_is_not_assumed_installed(self):
         self.assertFalse(

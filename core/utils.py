@@ -3,14 +3,17 @@
 utils.py - Utility / helper functions for RuntimeFix.
 """
 
+import json
 import os
 import re
 import sys
+import tempfile
 import logging
 import logging.handlers
 import ctypes
 import platform
 import subprocess
+import time
 
 try:
     import winreg
@@ -377,7 +380,7 @@ def wmi_feature_state(feature: str) -> str:
         "-NoProfile", "-NonInteractive", "-Command", _WMI_FEATURE_SCRIPT,
     ]
     try:
-        result = run_hidden(command, timeout=60, env=environment)
+        result = run_hidden(command, timeout=25, env=environment)
     except (OSError, subprocess.SubprocessError) as exc:
         logger.debug(f"WMI özellik sorgusu başarısız ({feature}): {exc}")
         return ""
@@ -387,6 +390,75 @@ def wmi_feature_state(feature: str) -> str:
         if separator and key.strip() == "STATE":
             return _WMI_INSTALL_STATES.get(value.strip(), "")
     return ""
+
+
+def _feature_cache_path() -> str:
+    base = os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
+    return os.path.join(base, "RuntimeFix", "feature_cache.json")
+
+
+def read_feature_cache() -> dict:
+    """Son bilinen Windows özelliği durumlarını okur."""
+    try:
+        with open(_feature_cache_path(), encoding="utf-8") as handle:
+            data = json.load(handle)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def write_feature_cache(states: dict) -> None:
+    path = _feature_cache_path()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        payload = dict(states)
+        payload[_CACHE_TIMESTAMP_KEY] = time.time()
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle)
+    except OSError as exc:
+        logger.debug(f"Özellik önbelleği yazılamadı: {exc}")
+
+
+FEATURE_CACHE_TTL_SECONDS = 12 * 3600
+_CACHE_TIMESTAMP_KEY = "_checked_at"
+
+
+def feature_cache_is_stale(features) -> bool:
+    """
+    Arka plan sorgusunun gerekip gerekmediğini söyler.
+
+    Sorgu alt süreç açtığı için mümkün olduğunca seyrek yapılır: yalnızca
+    hiç bilinmeyen bir özellik varsa ya da kayıt eskidiyse. Böylece tipik
+    açılışta program hiçbir alt süreç çalıştırmaz.
+    """
+    cache = read_feature_cache()
+    if any(feature not in cache for feature in features):
+        return True
+    checked_at = cache.get(_CACHE_TIMESTAMP_KEY, 0)
+    try:
+        age = time.time() - float(checked_at)
+    except (TypeError, ValueError):
+        return True
+    return age > FEATURE_CACHE_TTL_SECONDS
+
+
+def remember_feature_state(feature: str, installed: bool) -> None:
+    """Kurulum sonrası durumu hemen kaydeder (yeniden sorgulamaya gerek kalmaz)."""
+    cache = read_feature_cache()
+    cache[feature] = bool(installed)
+    write_feature_cache(cache)
+
+
+def detect_windows_feature_cached(feature: str) -> bool:
+    """
+    Windows özelliğini **alt süreç açmadan**, son bilinen değerden okur.
+
+    Tarama sırasında yalnızca bu kullanılır: tespit için alt süreç açmak
+    (WMI/DISM) paketlenmiş uygulamada arayüzü kilitleyebiliyor. Gerçek sorgu
+    arayüz hazır olduktan sonra arka planda yapılır ve önbelleği tazeler.
+    Bilinmeyen özellik "kurulu değil" sayılır.
+    """
+    return bool(read_feature_cache().get(feature, False))
 
 
 def detect_windows_feature(feature: str) -> bool:
@@ -533,7 +605,8 @@ def is_component_installed(component: dict) -> bool:
     if detect_type == "msxml4":
         return detect_msxml4()
     if detect_type == "windows_feature":
-        return detect_windows_feature(detect_value)
+        # Tarama alt süreç açmaz; gerçek sorgu arka planda tazelenir
+        return detect_windows_feature_cached(detect_value)
     if detect_type == "file":
         return detect_file_exists(detect_value)
     if detect_type == "dotnet_framework":

@@ -1,4 +1,4 @@
-# 🛠️ RuntimeFix v3.02
+# 🛠️ RuntimeFix v3.03
 
 <p align="center">
   <img src="assets/runtimefix-logo.png" width="128" alt="RuntimeFix logosu">
@@ -10,7 +10,7 @@
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Components](https://img.shields.io/badge/Components-45-orange)
 
-**RuntimeFix v3.02**, sisteminizde eksik olan runtime bileşenlerini otomatik olarak tespit edip tek tıkla kuran modern bir araçtır. Oyun oynamadan önce veya bir uygulama çalıştırırken karşılaşılan "Visual C++ bulunamadı", ".NET Runtime eksik" gibi hata mesajlarına son verir.
+**RuntimeFix v3.03**, sisteminizde eksik olan runtime bileşenlerini otomatik olarak tespit edip tek tıkla kuran modern bir araçtır. Oyun oynamadan önce veya bir uygulama çalıştırırken karşılaşılan "Visual C++ bulunamadı", ".NET Runtime eksik" gibi hata mesajlarına son verir.
 
 ---
 

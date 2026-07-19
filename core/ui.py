@@ -33,7 +33,9 @@ from PyQt6.QtWidgets import (
 
 from worker import DownloadInstallWorker, WorkerSignals
 from security import SecurityManager
-from utils import is_component_installed
+from utils import (detect_windows_feature, feature_cache_is_stale,
+                   is_component_installed, read_feature_cache,
+                   write_feature_cache)
 from languages import LANGUAGES, LANG_ORDER, get as T
 from app_info import (
     APP_EMAIL,
@@ -825,6 +827,52 @@ class ScanSignals(QObject):
     done = pyqtSignal(list)
 
 
+class FeatureRefreshSignals(QObject):
+    changed = pyqtSignal(bool)   # True = önbellek değişti, yeniden tarama gerekli
+
+
+class FeatureRefreshWorker(QObject):
+    """
+    Windows özelliklerinin (DirectPlay vb.) gerçek durumunu arka planda sorgular.
+
+    Neden ayrı: bu sorgu alt süreç açar (WMI/DISM) ve paketlenmiş uygulamada
+    zaman zaman uzun sürüyor. Tarama sırasında yapıldığında pencere donmuş
+    görünüyordu. Artık tarama önbellekten okur, gerçek sorgu arayüz kullanıma
+    hazır olduktan sonra burada çalışır; sonuç değişirse tarama tazelenir.
+    """
+
+    def __init__(self, components: List[dict]):
+        super().__init__()
+        self.features = [
+            c.get("detect_value", "")
+            for c in components
+            if c.get("detect_type") == "windows_feature" and c.get("detect_value")
+        ]
+        self.signals = FeatureRefreshSignals()
+
+    def run(self):
+        if not self.features:
+            self.signals.changed.emit(False)
+            return
+        cache = read_feature_cache()
+        updated = dict(cache)
+        for feature in self.features:
+            try:
+                updated[feature] = detect_windows_feature(feature)
+            except Exception:
+                logger.exception(f"Windows özelliği sorgulanamadı: {feature}")
+
+        changed = any(
+            updated.get(feature) != cache.get(feature) for feature in self.features
+        )
+        # Durum değişmese bile yaz: kaydın zaman damgası tazelenmezse her
+        # açılışta yeniden sorgulanır ve alt süreç açma riski geri gelir.
+        write_feature_cache(updated)
+        if changed:
+            logger.info(f"[ÖZELLİK] Durum değişti: {updated}")
+        self.signals.changed.emit(changed)
+
+
 class ScanWorker(QObject):
     def __init__(self, components):
         super().__init__()
@@ -883,6 +931,9 @@ class MainWindow(QWidget):
         self._update_in_progress = False
         self._pending_update_setup_path = ""
         self._scan_started_at = 0.0
+        self._feat_thread:  Optional[QThread] = None
+        self._feat_worker:  Optional[FeatureRefreshWorker] = None
+        self._features_refreshed = False
 
         if getattr(sys, "frozen", False):
             _log_dir = os.path.join(tempfile.gettempdir(), "RuntimeFix_logs")
@@ -1483,7 +1534,46 @@ class MainWindow(QWidget):
         if self._update_in_progress:
             self._set_busy(True)
         self._on_search(self._search_box.text())
+        # Arayüz artık kullanılabilir; pahalı özellik sorgusunu şimdi yap
+        self._refresh_windows_features()
         # Not: taramada ses yok — ses yalnızca yükleme bittiğinde çalar.
+
+    def _refresh_windows_features(self):
+        """Özellik durumlarını arka planda tazeler; değişmişse taramayı yeniler."""
+        if self._feat_thread and self._feat_thread.isRunning():
+            return
+        if self._features_refreshed or self._close_pending:
+            return
+        features = [c.get("detect_value") for c in self._components
+                    if c.get("detect_type") == "windows_feature" and c.get("detect_value")]
+        if not features or not feature_cache_is_stale(features):
+            # Kayıt taze — alt süreç açmaya gerek yok
+            return
+        self._features_refreshed = True   # oturumda bir kez yeter
+
+        self._feat_thread = QThread()
+        self._feat_worker = FeatureRefreshWorker(self._components)
+        self._feat_worker.moveToThread(self._feat_thread)
+        self._feat_worker.signals.changed.connect(
+            self._on_features_refreshed, Qt.ConnectionType.QueuedConnection)
+        self._feat_worker.signals.changed.connect(self._feat_thread.quit)
+        self._feat_thread.finished.connect(self._cleanup_feature_thread)
+        self._feat_thread.finished.connect(self._feat_worker.deleteLater)
+        self._feat_thread.finished.connect(self._feat_thread.deleteLater)
+        self._feat_thread.started.connect(self._feat_worker.run)
+        self._feat_thread.start()
+
+    def _on_features_refreshed(self, changed: bool):
+        if self._close_pending or not changed:
+            return
+        if self._state == "ready":
+            logger.info("[ÖZELLİK] Durum değişti — tarama tazeleniyor.")
+            self._do_scan()
+
+    def _cleanup_feature_thread(self):
+        self._feat_thread = None
+        self._feat_worker = None
+        self._complete_pending_close()
 
     def _warn_if_scan_stalled(self):
         """Tarama makul süreyi aştıysa kullanıcıya durumu söyler."""
@@ -1732,6 +1822,7 @@ class MainWindow(QWidget):
             self._scan_thread,
             self._upd_thread,
             self._upd_download_thread,
+            self._feat_thread,
         )
         return [thread for thread in threads if thread and thread.isRunning()]
 

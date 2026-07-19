@@ -1,4 +1,4 @@
-# 🛠️ RuntimeFix v1.00
+# 🛠️ RuntimeFix v1.01
 
 <p align="center">
   <img src="assets/runtimefix-logo.png" width="128" alt="RuntimeFix logosu">
@@ -10,7 +10,7 @@
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Components](https://img.shields.io/badge/Components-45-orange)
 
-**RuntimeFix v1.00**, sisteminizde eksik olan runtime bileşenlerini otomatik olarak tespit edip tek tıkla kuran modern bir araçtır. Oyun oynamadan önce veya bir uygulama çalıştırırken karşılaşılan "Visual C++ bulunamadı", ".NET Runtime eksik" gibi hata mesajlarına son verir.
+**RuntimeFix v1.01**, sisteminizde eksik olan runtime bileşenlerini otomatik olarak tespit edip tek tıkla kuran modern bir araçtır. Oyun oynamadan önce veya bir uygulama çalıştırırken karşılaşılan "Visual C++ bulunamadı", ".NET Runtime eksik" gibi hata mesajlarına son verir.
 
 ---
 
@@ -158,10 +158,10 @@ Program bileşenlerin kurulu olup olmadığını şu yöntemlerle kontrol eder:
 - **Registry** — Windows kayıt defteri kontrolü (VC++, XNA, MSXML, .NET sürüm kayıtları vb.)
 - **Dosya kontrolü** — Kritik DLL varlığı (DirectX, Vulkan vb.)
 - **Windows özellikleri** — DirectPlay gibi bileşenler için WMI/DISM sorgusu
-- **CLI** — `dotnet --list-runtimes` yalnızca son çare olarak kullanılır
+- Tespit hiçbir aşamada komut satırı aracı çalıştırmaz
 
-Tespit, mümkün olan her yerde alt süreç açmadan yapılır: tipik bir taramada
-45 bileşen için yalnızca bir alt süreç çalıştırılır.
+Tarama hiçbir alt süreç açmaz: 45 bileşenin tamamı disk ve kayıt defteri
+üzerinden, saniyenin altında tespit edilir.
 
 ### Güvenlik
 - Tüm indirmeler yalnızca HTTPS üzerinden yapılır

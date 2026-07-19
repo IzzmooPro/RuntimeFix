@@ -162,13 +162,24 @@ def run_hidden(cmd, timeout: int = 15, env=None):
 
 
 
-def dotnet_root(arch: str = "x64") -> str:
-    """Mimariye göre .NET kurulum kökü."""
+def dotnet_roots(arch: str = "x64") -> list[str]:
+    """
+    .NET'in kurulu olabileceği kökler (öncelik sırasıyla).
+
+    DOTNET_ROOT ortam değişkeni özel kurulum konumlarını kapsar; böylece
+    CLI çağırmadan da standart dışı kurulumlar bulunabilir.
+    """
     if arch == "x86":
         base = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
+        custom = os.environ.get("DOTNET_ROOT(x86)")
     else:
         base = os.environ.get("ProgramFiles", r"C:\Program Files")
-    return os.path.join(base, "dotnet")
+        custom = os.environ.get("DOTNET_ROOT")
+
+    roots = [os.path.join(base, "dotnet")]
+    if custom:
+        roots.append(custom)
+    return roots
 
 
 def _dotnet_versions_on_disk(relative_dir: str, arch: str = "x64") -> list[str]:
@@ -179,11 +190,17 @@ def _dotnet_versions_on_disk(relative_dir: str, arch: str = "x64") -> list[str]:
     kurar. Registry biçimi sürümden sürüme değişebiliyor, CLI ise alt süreç
     açmayı gerektiriyor.
     """
-    directory = os.path.join(dotnet_root(arch), relative_dir)
-    try:
-        return [entry.name for entry in os.scandir(directory) if entry.is_dir()]
-    except OSError:
-        return []
+    versions: list[str] = []
+    for root in dotnet_roots(arch):
+        try:
+            versions.extend(
+                entry.name
+                for entry in os.scandir(os.path.join(root, relative_dir))
+                if entry.is_dir()
+            )
+        except OSError:
+            continue
+    return versions
 
 
 def _dotnet_versions_in_registry(subkey: str) -> list[str]:
@@ -223,8 +240,11 @@ def detect_dotnet_sdk(version_prefix: str) -> bool:
     """
     .NET SDK tespiti (örn. "8.0").
 
-    Sıra: disk → registry → CLI. İlk ikisi alt süreç açmaz; CLI yalnızca
-    ikisi de sonuç veremezse denenir.
+    Yalnızca disk ve registry kullanılır — ``dotnet --list-sdks`` çağrısı
+    bilinçli olarak kaldırıldı. Tespit sırasında alt süreç açmak paketlenmiş
+    uygulamada arayüzü kilitleyebiliyordu ve .NET *kurulu değilken* tam da
+    o yola düşülüyordu. Bulunamayan sürüm "kurulu değil" sayılır; en kötü
+    ihtimalle kullanıcı zaten kurulu bir bileşeni yeniden kurar.
     """
     if _matches_prefix(_dotnet_versions_on_disk("sdk"), version_prefix):
         logger.debug(f".NET SDK {version_prefix} bulundu (disk)")
@@ -235,19 +255,7 @@ def detect_dotnet_sdk(version_prefix: str) -> bool:
         if _matches_prefix(_dotnet_versions_in_registry(subkey), version_prefix):
             logger.debug(f".NET SDK {version_prefix} bulundu (registry)")
             return True
-
-    try:
-        result = run_hidden(["dotnet", "--list-sdks"])
-        for line in (result.stdout or "").splitlines():
-            if line.startswith(version_prefix):
-                logger.debug(f".NET SDK {version_prefix} bulundu (CLI)")
-                return True
-        return False
-    except FileNotFoundError:
-        return False
-    except Exception:
-        logger.exception("dotnet SDK detection failed")
-        return False
+    return False
 
 
 def detect_registry_key(reg_path: str) -> bool:
@@ -768,34 +776,9 @@ def detect_dotnet_desktop(version_prefix: str, arch: str = "x64", flavor: str = 
             logger.debug(f".NET {flavor} {version_prefix} {arch} bulundu (registry)")
             return True
 
-    # 2) CLI fallback — mimari bazlı dotnet.exe çalıştır (x86 için x86 dotnet'i dene)
-    # Program Files (x86) altındaki dotnet x86 runtime'larını, normal altındaki x64'ü listeler.
-    if arch == "x86":
-        pf86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
-        dotnet_exe = os.path.join(pf86, "dotnet", "dotnet.exe")
-    else:
-        pf64 = os.environ.get("ProgramFiles", r"C:\Program Files")
-        dotnet_exe = os.path.join(pf64, "dotnet", "dotnet.exe")
-
-    # x86 için YALNIZCA Program Files (x86)\dotnet\dotnet.exe güvenilirdir;
-    # PATH'teki dotnet x64'tür ve x86 sorgusunda yanlış pozitif üretir.
-    if arch == "x86":
-        candidates = [dotnet_exe]
-    else:
-        candidates = [dotnet_exe, "dotnet"]
-    for exe in candidates:
-        try:
-            result = run_hidden([exe, "--list-runtimes"])
-            for line in result.stdout.splitlines():
-                parts = line.strip().split()
-                if len(parts) >= 2 and runtime_name in parts[0] and parts[1].startswith(version_prefix):
-                    logger.debug(f".NET {flavor} {version_prefix} {arch} found via CLI ({exe})")
-                    return True
-        except FileNotFoundError:
-            continue
-        except Exception:
-            break
-
+    # CLI yedeği bilinçli olarak YOK: ``dotnet --list-runtimes`` çağrısı
+    # tespit sırasında alt süreç açıyordu ve .NET kurulu DEĞİLKEN tam da o
+    # yola düşülüyordu — paketlenmiş uygulamada donmanın kaynağı buydu.
     return False
 
 

@@ -120,7 +120,10 @@ class VerificationPipelineTests(unittest.TestCase):
             patch("worker.get_cache_dir", return_value=str(ROOT)),
             patch("worker.find_cached", return_value=None),
             patch("worker.download_file", return_value=downloaded_path),
-            patch("worker.install_component") as install,
+            patch(
+                "worker.install_component",
+                return_value=InstallResult("VC++ Redist 2015-2022 (x64)", 0, True),
+            ) as install,
             patch("worker.os.path.exists", return_value=False),
         ):
             worker.run()

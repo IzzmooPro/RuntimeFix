@@ -1,7 +1,7 @@
 """RuntimeFix uygulama kimliği ve GitHub yayın adresleri."""
 
 APP_NAME = "RuntimeFix"
-APP_VERSION = "1.01"
+APP_VERSION = "1.05"
 APP_PUBLISHER = "IzzmooPro"
 APP_EMAIL = "IzzmooPro@gmail.com"
 

@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import unittest
@@ -231,6 +232,26 @@ class UiTests(unittest.TestCase):
         self.window._subline.setText("hazır")
         self.window._warn_if_scan_stalled()
         self.assertEqual(self.window._subline.text(), "hazır")
+
+    def test_startup_never_spawns_a_subprocess(self):
+        """
+        Ölçülen donmanın sebebi buydu: paketlenmiş uygulamada alt süreç
+        başlatmak arayüzü kilitliyor. Açılış yolunun tamamı — pencere kurulumu,
+        tarama, tarama sonrası — tek bir alt süreç bile açmamalı.
+        """
+        config = json.loads(
+            (ROOT / "data" / "config.json").read_text(encoding="utf-8")
+        )
+        with (
+            patch("utils.run_hidden") as run,
+            patch("ui.QTimer.singleShot"),
+            patch("ui.check_latest_release", return_value={"available": False}),
+        ):
+            window = MainWindow(config["components"], SecurityManager(), "1.05")
+            results = [(component, False) for component in config["components"]]
+            window._on_scan_done(results)
+            window.close()
+        run.assert_not_called()
 
     def test_close_waits_for_background_scan_thread(self):
         thread = MagicMock()

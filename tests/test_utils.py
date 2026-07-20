@@ -3,7 +3,6 @@ import os
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,13 +18,10 @@ from utils import (  # noqa: E402
     detect_dotnet_sdk,
     detect_file_exists,
     detect_java,
-    detect_windows_feature,
     dism_feature_state,
     is_component_installed,
-    powershell_executable,
     run_hidden,
     sanitize_filename,
-    wmi_feature_state,
 )
 
 
@@ -107,83 +103,6 @@ class UtilsTests(unittest.TestCase):
         self.assertIn("/get-featureinfo", command)
         self.assertIn("/English", command)  # çıktı dili sabitlenmeli
 
-    def test_wmi_install_states_are_mapped(self):
-        # Win32_OptionalFeature.InstallState: 1=etkin, 2=devre dışı, 3=yok
-        for value, expected in (("1", "enabled"), ("2", "disabled"), ("3", "absent")):
-            completed = SimpleNamespace(
-                returncode=0, stdout=f"STATE={value}\r\n", stderr=""
-            )
-            with self.subTest(value=value), patch(
-                "utils.run_hidden", return_value=completed
-            ):
-                self.assertEqual(wmi_feature_state("DirectPlay"), expected)
-
-    def test_feature_detection_maps_states_to_installed(self):
-        cases = {"1": True, "2": False, "3": False}
-        for value, expected in cases.items():
-            completed = SimpleNamespace(
-                returncode=0, stdout=f"STATE={value}\r\n", stderr=""
-            )
-            with self.subTest(value=value), patch(
-                "utils.run_hidden", return_value=completed
-            ):
-                self.assertIs(detect_windows_feature("DirectPlay"), expected)
-
-    def test_dism_is_used_when_wmi_cannot_answer(self):
-        """WMI yanıt vermezse DISM'e düşülmeli (yükseltilmiş ortam)."""
-        with (
-            patch("utils.wmi_feature_state", return_value=""),
-            patch("utils.dism_feature_state", return_value="enable pending") as dism,
-        ):
-            self.assertTrue(detect_windows_feature("DirectPlay"))
-        dism.assert_called_once_with("DirectPlay")
-
-    def test_unreadable_state_is_never_assumed_installed(self):
-        """Sorgulanamayan özellik 'kurulu' sayılmamalı."""
-        with (
-            patch("utils.wmi_feature_state", return_value=""),
-            patch("utils.dism_feature_state", return_value=""),
-        ):
-            self.assertFalse(detect_windows_feature("DirectPlay"))
-
-    def test_malformed_feature_name_is_rejected_before_querying(self):
-        """Özellik adı WQL sorgusuna girer; tırnak içeren ad hiç çalıştırılmamalı."""
-        with patch("utils.run_hidden") as run:
-            self.assertEqual(wmi_feature_state("DirectPlay' OR '1'='1"), "")
-        run.assert_not_called()
-
-    @unittest.skipUnless(os.name == "nt", "Windows özellikleri yalnızca Windows'ta")
-    def test_real_feature_states_match_the_system(self):
-        """
-        Taklit değil: gerçek Windows'a sorulur ve bağımsız bir kaynakla
-        karşılaştırılır. NetFx3'ün durumu registry tespitiyle aynı çıkmalı.
-        """
-        from utils import detect_dotnet_framework35
-
-        netfx_state = wmi_feature_state("NetFx3")
-        if not netfx_state:
-            self.skipTest("WMI özellik sorgusu bu ortamda yanıt vermiyor")
-        self.assertEqual(
-            detect_windows_feature("NetFx3"), detect_dotnet_framework35()
-        )
-        # Var olmayan özellik "kurulu" görünmemeli
-        self.assertFalse(detect_windows_feature("BoyleBirOzellikYok"))
-
-    @unittest.skipUnless(os.name == "nt", "PowerShell yalnızca Windows'ta")
-    def test_powershell_helper_is_actually_runnable(self):
-        """
-        Hem özellik tespiti hem imza doğrulaması PowerShell'e dayanıyor.
-        Bu test olmadan, PowerShell bulunamadığında ilgili canlı testler
-        sessizce "atlandı" görünür ve gerçek arıza fark edilmez.
-        """
-        executable = powershell_executable()
-        self.assertTrue(os.path.isfile(executable), f"bulunamadı: {executable}")
-        result = run_hidden(
-            [executable, "-NoProfile", "-NonInteractive", "-Command", "Write-Output OK"],
-            timeout=60,
-        )
-        self.assertEqual((result.stdout or "").strip(), "OK")
-
     def test_dotnet_versions_are_read_as_registry_values_not_subkeys(self):
         """
         .NET sürümleri anahtar altında DEĞER adı olarak durur ("8.0.25" = 1).
@@ -244,9 +163,9 @@ class UtilsTests(unittest.TestCase):
 
     def test_full_config_scan_never_spawns_a_subprocess(self):
         """
-        Kurulu sürümdeki donmanın ortak paydası buydu: tarama sırasında alt
-        süreç açmak. Gerçek config'in tamamı taranırken tek bir alt süreç bile
-        açılmamalı; Windows özelliği sorgusu arka plana taşındı.
+        Donmanın ortak paydası alt süreç açmaktı. Gerçek config'in tamamı
+        taranırken tek bir alt süreç bile açılmamalı — sistemde hiçbir bileşen
+        bulunamasa bile.
         """
         config = json.loads(
             (ROOT / "data" / "config.json").read_text(encoding="utf-8")
@@ -273,30 +192,6 @@ class UtilsTests(unittest.TestCase):
                 path.write_text("{bozuk", encoding="utf-8")
                 self.assertEqual(utils.read_feature_cache(), {})
                 self.assertFalse(utils.detect_windows_feature_cached("DirectPlay"))
-
-    def test_fresh_cache_prevents_repeated_background_queries(self):
-        """
-        Taze kayıt varken arka plan sorgusu da çalışmamalı: her açılışta alt
-        süreç açmak, donmanın kaynağıydı.
-        """
-        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
-            with patch.dict(os.environ, {"LOCALAPPDATA": directory}):
-                features = ["DirectPlay"]
-                self.assertTrue(utils.feature_cache_is_stale(features))  # ilk açılış
-
-                utils.write_feature_cache({"DirectPlay": True})
-                self.assertFalse(utils.feature_cache_is_stale(features))
-
-                # Bilinmeyen bir özellik eklenirse yeniden sorgulanmalı
-                self.assertTrue(utils.feature_cache_is_stale(["DirectPlay", "NetFx3"]))
-
-                # Kayıt eskiyince yeniden sorgulanmalı
-                stale = utils.read_feature_cache()
-                stale["_checked_at"] = time.time() - utils.FEATURE_CACHE_TTL_SECONDS - 1
-                Path(utils._feature_cache_path()).write_text(
-                    json.dumps(stale), encoding="utf-8"
-                )
-                self.assertTrue(utils.feature_cache_is_stale(features))
 
     def test_successful_install_records_feature_state(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:

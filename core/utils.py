@@ -5,7 +5,6 @@ utils.py - Utility / helper functions for RuntimeFix.
 
 import json
 import os
-import re
 import sys
 import tempfile
 import logging
@@ -13,7 +12,6 @@ import logging.handlers
 import ctypes
 import platform
 import subprocess
-import time
 
 try:
     import winreg
@@ -358,55 +356,13 @@ def dism_feature_state(feature: str) -> str:
     return ""
 
 
-# Win32_OptionalFeature.InstallState değerleri
-_WMI_INSTALL_STATES = {"1": "enabled", "2": "disabled", "3": "absent"}
-# Özellik adı WQL sorgusuna gireceği için biçimi önceden kısıtlanır
-_FEATURE_NAME_PATTERN = re.compile(r"[A-Za-z0-9._-]+")
-_WMI_FEATURE_ENV = "RUNTIMEFIX_FEATURE"
-_WMI_FEATURE_SCRIPT = (
-    "$ErrorActionPreference='Stop';"
-    "$f = Get-CimInstance -ClassName Win32_OptionalFeature "
-    f"-Filter (\"Name='\" + $env:{_WMI_FEATURE_ENV} + \"'\");"
-    "if ($f) { Write-Output ('STATE=' + $f.InstallState) }"
-)
-
-
-def wmi_feature_state(feature: str) -> str:
-    """
-    Windows özelliğinin durumunu WMI (``Win32_OptionalFeature``) üzerinden okur.
-
-    DISM'in aksine **yönetici yetkisi gerektirmez**, bu yüzden tespit için
-    tercih edilir. Dönüş: "enabled" / "disabled" / "absent"; okunamazsa "".
-    """
-    if os.name != "nt" or not _FEATURE_NAME_PATTERN.fullmatch(feature or ""):
-        return ""
-
-    environment = dict(os.environ)
-    environment[_WMI_FEATURE_ENV] = feature
-    command = [
-        powershell_executable(),
-        "-NoProfile", "-NonInteractive", "-Command", _WMI_FEATURE_SCRIPT,
-    ]
-    try:
-        result = run_hidden(command, timeout=25, env=environment)
-    except (OSError, subprocess.SubprocessError) as exc:
-        logger.debug(f"WMI özellik sorgusu başarısız ({feature}): {exc}")
-        return ""
-
-    for line in (result.stdout or "").splitlines():
-        key, separator, value = line.partition("=")
-        if separator and key.strip() == "STATE":
-            return _WMI_INSTALL_STATES.get(value.strip(), "")
-    return ""
-
-
 def _feature_cache_path() -> str:
     base = os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
     return os.path.join(base, "RuntimeFix", "feature_cache.json")
 
 
 def read_feature_cache() -> dict:
-    """Son bilinen Windows özelliği durumlarını okur."""
+    """Bilinen Windows özelliği durumlarını okur."""
     try:
         with open(_feature_cache_path(), encoding="utf-8") as handle:
             data = json.load(handle)
@@ -419,39 +375,16 @@ def write_feature_cache(states: dict) -> None:
     path = _feature_cache_path()
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        payload = dict(states)
-        payload[_CACHE_TIMESTAMP_KEY] = time.time()
         with open(path, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle)
+            json.dump(states, handle)
     except OSError as exc:
-        logger.debug(f"Özellik önbelleği yazılamadı: {exc}")
-
-
-FEATURE_CACHE_TTL_SECONDS = 12 * 3600
-_CACHE_TIMESTAMP_KEY = "_checked_at"
-
-
-def feature_cache_is_stale(features) -> bool:
-    """
-    Arka plan sorgusunun gerekip gerekmediğini söyler.
-
-    Sorgu alt süreç açtığı için mümkün olduğunca seyrek yapılır: yalnızca
-    hiç bilinmeyen bir özellik varsa ya da kayıt eskidiyse. Böylece tipik
-    açılışta program hiçbir alt süreç çalıştırmaz.
-    """
-    cache = read_feature_cache()
-    if any(feature not in cache for feature in features):
-        return True
-    checked_at = cache.get(_CACHE_TIMESTAMP_KEY, 0)
-    try:
-        age = time.time() - float(checked_at)
-    except (TypeError, ValueError):
-        return True
-    return age > FEATURE_CACHE_TTL_SECONDS
+        logger.debug(f"Özellik kaydı yazılamadı: {exc}")
 
 
 def remember_feature_state(feature: str, installed: bool) -> None:
-    """Kurulum sonrası durumu hemen kaydeder (yeniden sorgulamaya gerek kalmaz)."""
+    """Kurulum sonrası durumu kaydeder — bir daha sorgulanmasına gerek kalmaz."""
+    if not feature:
+        return
     cache = read_feature_cache()
     cache[feature] = bool(installed)
     write_feature_cache(cache)
@@ -459,41 +392,19 @@ def remember_feature_state(feature: str, installed: bool) -> None:
 
 def detect_windows_feature_cached(feature: str) -> bool:
     """
-    Windows özelliğini **alt süreç açmadan**, son bilinen değerden okur.
+    Windows özelliğinin durumunu **alt süreç açmadan** kayıttan okur.
 
-    Tarama sırasında yalnızca bu kullanılır: tespit için alt süreç açmak
-    (WMI/DISM) paketlenmiş uygulamada arayüzü kilitleyebiliyor. Gerçek sorgu
-    arayüz hazır olduktan sonra arka planda yapılır ve önbelleği tazeler.
-    Bilinmeyen özellik "kurulu değil" sayılır.
+    Windows'a özellik durumunu sormanın tek güvenilir yolu WMI ya da DISM
+    çağırmaktır; ikisi de alt süreç açar ve paketlenmiş uygulamada bunu yapmak
+    arayüzü kilitliyor (ölçüldü: sorgunun çalıştığı açılışta program dondu,
+    çalışmadığı üç açılışta donmadı). Bu yüzden çalışma anında hiç
+    sorgulanmaz.
+
+    Durum yalnızca RuntimeFix özelliği kendisi etkinleştirdiğinde kaydedilir.
+    Bilinmeyen özellik "kurulu değil" sayılır: kullanıcı kurmayı denerse DISM
+    zaten etkin olduğunu bildirir, kayıt düzelir ve bir daha sorulmaz.
     """
     return bool(read_feature_cache().get(feature, False))
-
-
-def detect_windows_feature(feature: str) -> bool:
-    """
-    Windows özelliğinin açık olup olmadığını belirler.
-
-    Neden dosya varlığına bakılmıyor: ``dplayx.dll`` DirectPlay özelliği
-    kapalıyken de Windows'ta bulunur. Bu makinede ölçüldü — dosya var, özellik
-    ``InstallState=2`` (devre dışı). Dosya tabanlı tespit bileşeni hep "kurulu"
-    gösteriyordu.
-
-    Önce WMI denenir (yetki istemez); WMI yanıt vermezse DISM'e düşülür.
-    Hiçbiri okunamazsa "kurulu değil" denir — belirsizlik asla "kurulu"
-    yönünde yorumlanmaz.
-    """
-    state = wmi_feature_state(feature)
-    source = "WMI"
-    if not state:
-        state = dism_feature_state(feature)
-        source = "DISM"
-
-    installed = state in DISM_ENABLED_STATES
-    logger.debug(
-        f"Windows özelliği '{feature}': {source} durumu="
-        f"{state or 'okunamadı'} → {'kurulu' if installed else 'kurulu değil'}"
-    )
-    return installed
 
 
 def detect_msxml4() -> bool:

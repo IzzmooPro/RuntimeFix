@@ -157,8 +157,8 @@ Program bileşenlerin kurulu olup olmadığını şu yöntemlerle kontrol eder:
 - **Disk** — .NET sürümleri `dotnet\shared` ve `dotnet\sdk` klasörlerinden okunur (en hızlı ve en güvenilir kaynak)
 - **Registry** — Windows kayıt defteri kontrolü (VC++, XNA, MSXML, .NET sürüm kayıtları vb.)
 - **Dosya kontrolü** — Kritik DLL varlığı (DirectX, Vulkan vb.)
-- **Windows özellikleri** — DirectPlay gibi bileşenler için WMI/DISM sorgusu
-- Tespit hiçbir aşamada komut satırı aracı çalıştırmaz
+- **Windows özellikleri** — DirectPlay gibi bileşenlerin durumu, RuntimeFix onları etkinleştirdiğinde kaydedilir
+- Tespit hiçbir aşamada alt süreç (komut satırı aracı) çalıştırmaz
 
 Tarama hiçbir alt süreç açmaz: 45 bileşenin tamamı disk ve kayıt defteri
 üzerinden, saniyenin altında tespit edilir.

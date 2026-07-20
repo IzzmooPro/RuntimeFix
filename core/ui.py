@@ -54,7 +54,7 @@ SCAN_STALL_WARNING_MS = 40_000
 C_BG       = "#17181c"   # pencere zemini (yumuşak antrasit)
 C_SURFACE  = "#1e2025"   # hover / girdi zemini
 C_BORDER   = "#25272d"   # ince ayraç
-C_BORDER2  = "#2e3138"   # vurgulu ayraç
+C_BORDER2  = "#3a4049"   # vurgulu ayraç / kart kenarı
 C_TEXT     = "#ececee"   # ana metin (kırık beyaz)
 C_MUTED    = "#8a8f98"   # ikincil metin
 C_DIM      = "#585d66"   # sönük (kurulu satırlar)
@@ -204,8 +204,9 @@ QPushButton#primaryBtn {{
     color: {C_PRIM_FG};
     border: none;
     border-radius: 8px;
-    padding: 8px 14px;
-    font-size: 10pt;
+    /* 20px yatay dolgu, 530px'lik pencerede başlığı kırpıyordu */
+    padding: 10px 14px;
+    font-size: 10.5pt;
     font-weight: 600;
 }}
 QPushButton#primaryBtn:hover    {{ background-color: {C_PRIM_H}; }}
@@ -241,8 +242,8 @@ QPushButton#linkBtn {{
 QPushButton#linkBtn:hover {{ color: {C_ACCENT}; }}
 
 QPushButton#repairBtn {{
-    background: transparent;
-    color: #9aa1ab;
+    background: {C_SURFACE};
+    color: #a8afb9;
     border: 1px solid {C_BORDER2};
     border-radius: 8px;
     padding: 7px 12px;
@@ -290,9 +291,13 @@ QWidget#updateBar {{
     border-bottom: 1px solid #1e4a41;
 }}
 
+/* Hero kartı sayfanın odak noktası: zemin biraz daha açık ve kenar daha
+   belirgin, böylece pencere zemininden net ayrışır. Ton yine sakin kalır. */
 QWidget#heroCard {{
-    background: #1c1e23;
-    border: 1px solid #292c33;
+    background: #212429;
+    border: 1px solid #3a4049;
+    /* Üst kenar bir ton açık: ışık yukarıdan geliyormuş hissi verir. */
+    border-top: 1px solid #4a515b;
     border-radius: 12px;
 }}
 QWidget#heroRow, QWidget#progRow {{ background: transparent; }}
@@ -424,7 +429,7 @@ class HealthRing(QWidget):
         self._display: Optional[float] = None  # ekranda çizilen (animasyonlu)
         self._busy = False
         self._anim: Optional[QVariantAnimation] = None
-        self.setFixedSize(56, 56)
+        self.setFixedSize(62, 62)
 
     def set_percent(self, pct: Optional[int], animate: bool = True):
         self._busy = False
@@ -465,7 +470,7 @@ class HealthRing(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = QRectF(4, 4, self.width() - 8, self.height() - 8)
 
-        pen = QPen(QColor(C_BORDER2), 5)
+        pen = QPen(QColor(C_BORDER2), 6)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         p.setPen(pen)
         p.drawArc(rect, 0, 360 * 16)
@@ -480,7 +485,7 @@ class HealthRing(QWidget):
 
         p.setPen(QPen(QColor(C_OK if complete else C_TEXT)))
         f = QFont(self.font())
-        f.setPointSize(11)
+        f.setPointSize(12)
         f.setWeight(QFont.Weight.DemiBold)
         p.setFont(f)
         if self._busy:
@@ -491,6 +496,9 @@ class HealthRing(QWidget):
             text = f"%{round(shown)}"
         p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, text)
         p.end()
+
+
+MARK_WIDTH = 22   # seçim işareti sütunu
 
 
 # ── Bileşen satırı ──────────────────────────────────────────────────────────
@@ -508,17 +516,17 @@ class ComponentRow(QWidget):
         self._interactive = True
         self._repair = False   # Onarım modu: kurulu satırlar da seçilebilir
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setFixedHeight(31)
+        self.setFixedHeight(32)
         tip = _get_tooltip(component)
         if tip:
             self.setToolTip(tip)
 
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(10, 0, 10, 0)
-        lay.setSpacing(10)
+        lay.setContentsMargins(12, 0, 14, 0)
+        lay.setSpacing(8)
 
         self._mark = QLabel()
-        self._mark.setFixedWidth(26)
+        self._mark.setFixedWidth(MARK_WIDTH)
         self._mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self._mark)
 
@@ -539,6 +547,7 @@ class ComponentRow(QWidget):
                 f"ComponentRow:hover {{ background:{C_SURFACE}; }}"
             )
             self.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._mark.setFixedWidth(MARK_WIDTH)
             if self._checked:
                 self._mark.setText("●")
                 self._mark.setStyleSheet(f"color:{C_ACCENT};font-size:15pt;")
@@ -551,6 +560,7 @@ class ComponentRow(QWidget):
         elif self._state == self.ST_DONE:
             self.setStyleSheet("ComponentRow { background:transparent; }")
             self.setCursor(Qt.CursorShape.ArrowCursor)
+            self._mark.setFixedWidth(MARK_WIDTH)
             self._mark.setText("●")
             self._mark.setStyleSheet(f"color:{C_OK};font-size:15pt;")
             self._name.setStyleSheet(f"color:{C_TEXT};font-size:10pt;")
@@ -559,6 +569,7 @@ class ComponentRow(QWidget):
         elif self._state == self.ST_FAILED:
             self.setStyleSheet("ComponentRow { background:transparent; }")
             self.setCursor(Qt.CursorShape.ArrowCursor)
+            self._mark.setFixedWidth(MARK_WIDTH)
             self._mark.setText("✕")
             self._mark.setStyleSheet(f"color:{C_ERR};font-size:13pt;")
             self._name.setStyleSheet(f"color:{C_TEXT};font-size:10pt;")
@@ -571,6 +582,7 @@ class ComponentRow(QWidget):
                 f"ComponentRow:hover {{ background:{C_SURFACE}; }}"
             )
             self.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._mark.setFixedWidth(MARK_WIDTH)
             if self._checked:
                 self._mark.setText("●")
                 self._mark.setStyleSheet(f"color:{C_ACCENT};font-size:15pt;")
@@ -586,10 +598,13 @@ class ComponentRow(QWidget):
         else:  # ST_INSTALLED — sönük, ikonsuz (durumu isim + etiket anlatır)
             self.setStyleSheet("ComponentRow { background:transparent; }")
             self.setCursor(Qt.CursorShape.ArrowCursor)
+            # Boş işaret sütunu isimleri gereksiz yere sağa itiyordu;
+            # seçilemeyen satırlarda sütun tamamen kapanır.
+            self._mark.setFixedWidth(0)
             self._mark.setText("")
             self._name.setStyleSheet(f"color:{C_DIM};font-size:10pt;")
             self._right.setText(T(self._lang, "row_installed"))
-            self._right.setStyleSheet(f"color:{C_DIMMER};font-size:8.5pt;")
+            self._right.setStyleSheet(f"color:{C_DIM};font-size:8.5pt;")
 
     def update_lang(self, lang: str):
         self._lang = lang
@@ -650,11 +665,13 @@ class SectionHeader(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(10, 10, 10, 2)
+        # Sol kenar, satırlardaki isim başlangıcıyla aynı hizada:
+        # satır kenarı (12) + kapalı işaret sütunu (0) + aralık (8)
+        lay.setContentsMargins(20, 14, 14, 4)
         lay.setSpacing(8)
         self.label = QLabel()
         self.label.setStyleSheet(
-            f"color:{C_MUTED};font-size:8pt;font-weight:600;letter-spacing:1px;"
+            f"color:{C_TEXT};font-size:8.5pt;font-weight:700;letter-spacing:1.2px;"
         )
         lay.addWidget(self.label)
         lay.addStretch(1)
@@ -903,6 +920,14 @@ class MainWindow(QWidget):
         self.setWindowIcon(make_app_icon(32))
         self._build_ui()
         self._apply_lang()
+        # Arayüz iş parçacığının canlı olduğunu kaydeder. Donma olursa
+        # son kalp atışı, arayüzün tam olarak ne zaman durduğunu gösterir.
+        self._heartbeat_count = 0
+        self._heartbeat = QTimer(self)
+        self._heartbeat.setInterval(2000)
+        self._heartbeat.timeout.connect(self._log_heartbeat)
+        self._heartbeat.start()
+
         # Açılışta otomatik tarama — kullanıcı ilk bakışta durumu görür
         QTimer.singleShot(400, self._do_scan)
         # Pencereyi bekletmeden güncellemeyi arka planda denetle. Yeni sürüm
@@ -1003,8 +1028,8 @@ class MainWindow(QWidget):
         hero = QWidget()
         hero.setObjectName("heroRow")
         he = QHBoxLayout(hero)
-        he.setContentsMargins(14, 12, 14, 10)
-        he.setSpacing(12)
+        he.setContentsMargins(16, 14, 16, 12)
+        he.setSpacing(16)
 
         self._ring = HealthRing()
         he.addWidget(self._ring)
@@ -1013,7 +1038,10 @@ class MainWindow(QWidget):
         mid.setSpacing(3)
         self._headline = QLabel()
         self._headline.setStyleSheet(
-            f"color:{C_TEXT};font-size:11.5pt;font-weight:600;")
+            f"color:{C_TEXT};font-size:12pt;font-weight:700;")
+        # Almanca ve Fransızca başlıklar 38 karaktere çıkıyor; kaydırma
+        # olmadan kırpılıyorlardı. Kart yüksekliği gerektiğinde büyür.
+        self._headline.setWordWrap(True)
         mid.addWidget(self._headline)
         self._subline = QLabel()
         self._subline.setStyleSheet(f"color:{C_MUTED};font-size:9pt;")
@@ -1072,8 +1100,12 @@ class MainWindow(QWidget):
         self._prog_wrap.setVisible(False)
         cv.addWidget(prog_wrap)
 
+        # NOT: QGraphicsDropShadowEffect denendi ve kaldırıldı — eklendiği
+        # sürümde program kaynaktan çalıştırıldığında da donmaya başladı.
+        # Yükselti hissi artık yalnızca kenar renkleriyle veriliyor.
         ho.addWidget(card)
         root.addWidget(hero_outer)
+        root.addWidget(self._hairline())
 
         # ── Liste ──
         self._scroll = QScrollArea()
@@ -1401,11 +1433,22 @@ class MainWindow(QWidget):
         webbrowser.open(GITHUB_RELEASES_URL)
 
     def _cleanup_update_thread(self):
+        # Referansı burada düşürmek, QThread nesnesini KENDİ 'finished'
+        # işleyicisi içinde yok ediyor. QThread yıkıcısı iş parçacığının
+        # bitmesini beklediği için arayüz kilitleniyordu (py-spy yığını tam
+        # bu satırda duruyordu). Serbest bırakmayı bir sonraki olay döngüsü
+        # turuna erteliyoruz: o an nesne güvenle yok edilebilir durumda olur.
+        QTimer.singleShot(0, self._release_update_thread)
+
+    def _release_update_thread(self):
         self._upd_thread = None
         self._upd_worker = None
         self._complete_pending_close()
 
     def _cleanup_update_download_thread(self):
+        QTimer.singleShot(0, self._release_update_download_thread)
+
+    def _release_update_download_thread(self):
         self._upd_download_thread = None
         self._upd_downloader = None
         self._complete_pending_close()
@@ -1486,6 +1529,12 @@ class MainWindow(QWidget):
         self._on_search(self._search_box.text())
         # Not: taramada ses yok — ses yalnızca yükleme bittiğinde çalar.
 
+    def _log_heartbeat(self):
+        self._heartbeat_count += 1
+        # İlk dakika ayrıntılı, sonrasında seyrek: log şişmesin
+        if self._heartbeat_count <= 30 or self._heartbeat_count % 15 == 0:
+            logger.debug(f"[NABIZ] arayüz canlı ({self._heartbeat_count})")
+
     def _warn_if_scan_stalled(self):
         """Tarama makul süreyi aştıysa kullanıcıya durumu söyler."""
         if self._state != "scanning" or self._close_pending:
@@ -1498,6 +1547,9 @@ class MainWindow(QWidget):
         self._subline.setText(T(self._lang, "scan_slow"))
 
     def _cleanup_scan_thread(self):
+        QTimer.singleShot(0, self._release_scan_thread)
+
+    def _release_scan_thread(self):
         self._scan_thread = None
         self._scan_worker = None
         self._complete_pending_close()
@@ -1678,6 +1730,9 @@ class MainWindow(QWidget):
             self._subline.setText(T(lang, "status_cancelled"))
 
     def _cleanup_install_thread(self):
+        QTimer.singleShot(0, self._release_install_thread)
+
+    def _release_install_thread(self):
         self._thread = None
         self._worker = None
         self._complete_pending_close()

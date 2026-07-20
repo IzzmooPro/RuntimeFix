@@ -160,6 +160,7 @@ class UiTests(unittest.TestCase):
 
             scan_thread.isRunning.return_value = False
             self.window._cleanup_scan_thread()
+            self.window._release_scan_thread()
             popen.assert_called_once_with([setup_path], cwd=str(ROOT))
 
     def test_repair_reinstall_does_not_inflate_installed_count(self):
@@ -253,6 +254,34 @@ class UiTests(unittest.TestCase):
             window.close()
         run.assert_not_called()
 
+    def test_thread_cleanup_defers_reference_release(self):
+        """
+        QThread referansını kendi 'finished' işleyicisi içinde düşürmek,
+        C++ nesnesini o anda yok ediyor; QThread yıkıcısı iş parçacığının
+        bitmesini beklerken arayüz kilitleniyordu (py-spy yığını bunu
+        _cleanup_update_thread satırında gösterdi). Serbest bırakma bir
+        sonraki olay döngüsü turuna ertelenmeli.
+        """
+        temizleyiciler = (
+            (self.window._cleanup_update_thread, "_upd_thread"),
+            (self.window._cleanup_update_download_thread, "_upd_download_thread"),
+            (self.window._cleanup_scan_thread, "_scan_thread"),
+            (self.window._cleanup_install_thread, "_thread"),
+        )
+        for temizle, alan in temizleyiciler:
+            with self.subTest(alan=alan):
+                sahte = MagicMock()
+                setattr(self.window, alan, sahte)
+                with patch("ui.QTimer.singleShot") as timer:
+                    temizle()
+                # Referans HENÜZ düşürülmemeli
+                self.assertIs(getattr(self.window, alan), sahte)
+                timer.assert_called_once()
+                self.assertEqual(timer.call_args.args[0], 0)
+                # Ertelenen çağrı çalışınca referans bırakılır
+                timer.call_args.args[1]()
+                self.assertIsNone(getattr(self.window, alan))
+
     def test_close_waits_for_background_scan_thread(self):
         thread = MagicMock()
         thread.isRunning.return_value = True
@@ -266,8 +295,10 @@ class UiTests(unittest.TestCase):
         self.assertFalse(self.window.isEnabled())
 
         thread.isRunning.return_value = False
+        # Referans serbest bırakma bir sonraki tura ertelenir (donma düzeltmesi)
+        self.window._cleanup_scan_thread()
         with patch("ui.QTimer.singleShot") as timer:
-            self.window._cleanup_scan_thread()
+            self.window._release_scan_thread()
         timer.assert_called_once_with(0, self.window.close)
 
 
